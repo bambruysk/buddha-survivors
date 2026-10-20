@@ -26,7 +26,7 @@
   .card:hover { background: #3b2f5f; }
   .card b { font-size: 17px; color: #ffd23f; }
   .card small { opacity: .7; }
-  #pauseBtn { position: fixed; top: 44px; right: 8px; width: 40px; height: 40px; padding: 0; font-size: 18px; border-radius: 8px;
+  #pauseBtn { position: fixed; top: 64px; right: 8px; width: 40px; height: 40px; padding: 0; font-size: 18px; border-radius: 8px;
               background: rgba(20,16,31,.7); color: #fff; box-shadow: none; border: 2px solid rgba(255,255,255,.4); }
   .stat { font-size: 18px; line-height: 1.6; }
 </style>
@@ -52,6 +52,7 @@
 
 <div id="pause" class="ov hidden">
   <h1>Пауза</h1>
+  <div id="pauseInfo" class="stat" style="font-size:15px"></div>
   <button id="resume">Продолжить</button>
   <button id="quit" style="background:#4a4e5a;color:#fff;box-shadow:0 4px 0 #2b2e36">Сдаться</button>
 </div>
@@ -622,15 +623,32 @@ function render() {
   ctx.fillStyle = 'rgba(0,0,0,.5)'; ctx.fillRect(0, 0, W, 12);
   ctx.fillStyle = '#4fc3f7'; ctx.fillRect(0, 0, W * Math.min(1, G.xp / G.need), 12);
   ctx.fillStyle = '#fff'; ctx.font = 'bold 11px monospace'; ctx.fillText('Ур. ' + G.lvl, 6, 10);
-  ctx.textAlign = 'center'; ctx.font = 'bold 20px monospace';
-  ctx.fillStyle = '#000'; ctx.fillText(mmss(G.t), W / 2 + 1, 37); ctx.fillStyle = '#fff'; ctx.fillText(mmss(G.t), W / 2, 36);
-  ctx.textAlign = 'right'; ctx.font = 'bold 14px monospace';
-  ctx.fillStyle = '#000'; ctx.fillText('Побеждено: ' + G.kills, W - 7, 33); ctx.fillStyle = '#fff'; ctx.fillText('Побеждено: ' + G.kills, W - 8, 32);
+  const shadowText = (txt, x, y) => { ctx.fillStyle = '#000'; ctx.fillText(txt, x + 1, y + 1); ctx.fillStyle = '#fff'; ctx.fillText(txt, x, y); };
+  ctx.textAlign = 'right'; ctx.font = 'bold 20px monospace'; shadowText(mmss(G.t), W - 8, 36);
+  ctx.font = 'bold 14px monospace'; shadowText('Побеждено: ' + G.kills, W - 8, 54);
+
   // здоровье
-  const hw = 120, hx = 8, hy = 22;
-  ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.fillRect(hx - 1, hy - 1, hw + 2, 12);
-  ctx.fillStyle = '#d94141'; ctx.fillRect(hx, hy, hw * Math.max(0, P.hp / P.max), 10);
-  ctx.fillStyle = '#fff'; ctx.font = 'bold 10px monospace'; ctx.textAlign = 'left'; ctx.fillText(Math.ceil(P.hp) + '/' + P.max, hx + 4, hy + 9);
+  const hw = Math.min(240, W * .55), hh = 24, hx = 8, hy = 20, ratio = Math.max(0, P.hp / P.max);
+  ctx.fillStyle = 'rgba(0,0,0,.7)'; ctx.fillRect(hx - 2, hy - 2, hw + 4, hh + 4);
+  ctx.fillStyle = ratio < .3 && Math.floor(G.t * 4) % 2 ? '#ff8a8a' : '#d94141';
+  ctx.fillRect(hx, hy, hw * ratio, hh);
+  ctx.fillStyle = 'rgba(255,255,255,.18)'; ctx.fillRect(hx, hy, hw * ratio, 5);
+  ctx.textAlign = 'center'; ctx.font = 'bold 14px monospace';
+  shadowText(Math.ceil(P.hp) + ' / ' + P.max, hx + hw / 2, hy + 17);
+
+  // оружие и улучшения
+  const WEAPONS = [['bolt', '#ffd23f'], ['orbit', '#ffffff'], ['aura', '#ff9ecb'], ['light', '#8ecbff']];
+  let sx = hx;
+  for (const [id, col] of WEAPONS) {
+    const lv = G.w[id]; if (!lv) continue;
+    drawSlot(sx, hy + hh + 10, 36, id, col, lv); sx += 42;
+  }
+  const PASS = [['hp', 'ЗД'], ['spd', 'СК'], ['mag', 'МГ'], ['mig', 'СИ'], ['reg', 'МД']];
+  sx = hx;
+  for (const [id, lab] of PASS) {
+    const lv = G.pl[id]; if (!lv) continue;
+    drawSlot(sx, hy + hh + 52, 28, lab, '#7ec8e3', lv); sx += 34;
+  }
   // джойстик
   if (joy.active) {
     ctx.strokeStyle = 'rgba(255,255,255,.3)'; ctx.lineWidth = 3;
@@ -639,6 +657,25 @@ function render() {
     ctx.beginPath(); ctx.arc(joy.ox + joy.dx * 50, joy.oy + joy.dy * 50, 20, 0, 6.283); ctx.fill();
   }
 }
+// плашка оружия/улучшения: иконка по id (или подпись из двух букв) и уровень
+function drawSlot(x, y, size, id, col, lv) {
+  ctx.fillStyle = 'rgba(20,16,31,.8)'; ctx.fillRect(x, y, size, size);
+  ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.strokeRect(x + 1, y + 1, size - 2, size - 2);
+  const cx = x + size / 2, cy = y + size / 2 - 2;
+  ctx.fillStyle = col; ctx.strokeStyle = col; ctx.lineWidth = 2;
+  if (id === 'bolt') { ctx.save(); ctx.translate(cx, cy); ctx.rotate(.785); ctx.fillRect(-5, -5, 10, 10); ctx.fillStyle = '#fff'; ctx.fillRect(-2, -2, 4, 4); ctx.restore(); }
+  else if (id === 'orbit') {
+    ctx.beginPath(); ctx.arc(cx, cy, 3, 0, 6.283); ctx.fill();
+    for (let i = 0; i < 3; i++) { const a = i * 2.094 + .5; ctx.beginPath(); ctx.arc(cx + Math.cos(a) * 9, cy + Math.sin(a) * 9, 3, 0, 6.283); ctx.fill(); }
+  }
+  else if (id === 'aura') { ctx.beginPath(); ctx.arc(cx, cy, 5, 0, 6.283); ctx.stroke(); ctx.beginPath(); ctx.arc(cx, cy, 10, 0, 6.283); ctx.stroke(); }
+  else if (id === 'light') { ctx.beginPath(); ctx.moveTo(cx + 3, cy - 11); ctx.lineTo(cx - 5, cy + 1); ctx.lineTo(cx + 1, cy + 1); ctx.lineTo(cx - 3, cy + 11); ctx.stroke(); }
+  else { ctx.font = 'bold 12px monospace'; ctx.textAlign = 'center'; ctx.fillText(id, cx, cy + 4); }
+  ctx.font = 'bold 11px monospace'; ctx.textAlign = 'right';
+  ctx.fillStyle = '#000'; ctx.fillText(lv, x + size - 2, y + size - 2);
+  ctx.fillStyle = '#fff'; ctx.fillText(lv, x + size - 3, y + size - 3);
+}
+
 function drawBubble(P, s, minX, maxX) {
   ctx.font = 'bold 11px monospace';
   const maxW = 150, words = s.text.split(' '), lines = [];
@@ -703,6 +740,10 @@ function togglePause() {
   state = pausing ? 'paused' : 'play';
   keys.clear(); joy.active = false; joy.dx = joy.dy = 0;
   document.getElementById('pause').classList.toggle('hidden', !pausing);
+  if (pausing) {
+    const have = UPG.filter(u => levelOf(u) > 0).map(u => `${u.name} — ур. ${levelOf(u)}`);
+    document.getElementById('pauseInfo').innerHTML = have.join('<br>');
+  }
 }
 
 function begin() {
