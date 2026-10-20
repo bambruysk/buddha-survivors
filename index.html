@@ -208,6 +208,24 @@ const UPG = [
   { id: 'reg',   kind: 'p', name: 'Медитация',        max: 6, desc: () => '+0.5 здоровья в секунду' },
 ];
 
+// ---------- фразочки героя ----------
+const SAY = {
+  idle: [
+    'Всё суета. Особенно вы.', 'Я не бью — я осветляю.', 'Дзен — это когда враг рядом, а мне всё равно.',
+    'Чакры на месте, нервы — нет.', 'Ом-м-м... Осторожно, сзади!', 'Хлопок одной ладонью... по лицу.',
+    'Карма — штука острая.', 'Дышите глубже. Или я помогу.', 'Тут шумно. Хочу в нирвану.',
+    'Все страдания от привязанностей. И от хиппи.', 'Я бы медитировал, но вы мешаете.',
+    'Не бойтесь толпы. Бойтесь wifi без пароля.', 'Кто не спешит — тот уже просветлён.',
+    'Истина где-то рядом. Вы стоите на ней.', 'Я не злой. Я просто очень светлый.',
+    'Если дерево падает, а вокруг толпа — оно упало удачно.',
+  ],
+  level: ['Озарение!', 'Ещё ступень. Ещё глупый вопрос.', 'Чувствую просветление... и перегрев.', 'Я стал на 3% осознаннее.'],
+  boss: ['О, Главный хиппи. Намасте, коллега.', 'Большой человек — большая иллюзия.', 'Побеседуем? Лучом.'],
+  hurt: ['Это не боль, это иллюзия!', 'Тело — оболочка. Но больно же!', 'Отпусти... отпусти... ай!'],
+};
+const pickSay = k => SAY[k][(Math.random() * SAY[k].length) | 0];
+function say(text, dur = 3.2) { G.say = { text, life: dur, max: dur }; }
+
 // ---------- состояние ----------
 let state = 'menu', G;
 const keys = new Set(), joy = { active: false, id: -1, ox: 0, oy: 0, dx: 0, dy: 0 };
@@ -221,7 +239,7 @@ function reset() {
         player: { x: 0, y: 0, hp: 100, max: 100, speed: 110, mag: 60, dmg: 1, regen: 0, face: 1, inv: 0, moving: false },
         enemies: [], bullets: [], gems: [], fx: [],
         w: { bolt: 1, orbit: 0, aura: 0, light: 0 }, pl: { hp: 0, spd: 0, mag: 0, mig: 0, reg: 0 },
-        cd: { bolt: 0.3, aura: 1, light: 1 }, grid: new Map() };
+        cd: { bolt: 0.3, aura: 1, light: 1 }, grid: new Map(), say: null, sayT: 5, hurtSayT: 0 };
   recalc();
 }
 function recalc() {
@@ -276,7 +294,7 @@ function spawnLogic(dt) {
     const a0 = Math.random() * 6.283;
     for (let i = 0; i < 14; i++) spawnEnemy('hippie', a0 + (i - 7) * .09, Math.hypot(vw, vh) / 2 + 40);
   }
-  if (t >= G.nextBoss) { G.nextBoss += 180; spawnEnemy('boss'); G.bossN++; }
+  if (t >= G.nextBoss) { G.nextBoss += 180; spawnEnemy('boss'); G.bossN++; say(pickSay('boss'), 4); G.sayT = 10; }
 }
 
 // ---------- урон и смерть ----------
@@ -410,6 +428,12 @@ function update(dt) {
   P.inv = Math.max(0, P.inv - dt);
   P.hp = Math.min(P.max, P.hp + P.regen * dt);
 
+  // герой изредка философствует
+  if (G.say && (G.say.life -= dt) <= 0) G.say = null;
+  G.hurtSayT -= dt;
+  G.sayT -= dt;
+  if (G.sayT <= 0 && !G.say) { say(pickSay('idle')); G.sayT = 9 + Math.random() * 6; }
+
   spawnLogic(dt);
   buildGrid();
 
@@ -438,6 +462,7 @@ function update(dt) {
       P.hp -= e.dmg; P.inv = .45;
       addFx({ k: 'txt', x: P.x, y: P.y - 20, text: '-' + Math.round(e.dmg), life: .6, red: true });
       if (P.hp <= 0) { endGame(); return; }
+      if (P.hp < P.max * .3 && G.hurtSayT <= 0) { say(pickSay('hurt'), 2.5); G.hurtSayT = 15; }
     }
   }
 
@@ -490,6 +515,7 @@ function offer() {
   const pool = UPG.filter(u => levelOf(u) < u.max).sort(() => Math.random() - .5).slice(0, 3);
   if (!pool.length) { G.player.hp = G.player.max; return; }
   state = 'levelup'; choices = pool;
+  say(pickSay('level'), 2.5);
   const box = document.getElementById('cards'); box.innerHTML = '';
   pool.forEach((u, i) => {
     const l = levelOf(u), b = document.createElement('div');
@@ -587,6 +613,7 @@ function render() {
       ctx.fillStyle = f.red ? '#ff6b6b' : '#fff'; ctx.fillText(f.text, f.x, f.y); ctx.globalAlpha = 1;
     }
   }
+  if (G.say) drawBubble(P, G.say, camx, camx + vw);
   ctx.restore();
 
   // HUD в экранных пикселях
@@ -611,6 +638,28 @@ function render() {
     ctx.fillStyle = 'rgba(255,255,255,.35)';
     ctx.beginPath(); ctx.arc(joy.ox + joy.dx * 50, joy.oy + joy.dy * 50, 20, 0, 6.283); ctx.fill();
   }
+}
+function drawBubble(P, s, minX, maxX) {
+  ctx.font = 'bold 11px monospace';
+  const maxW = 150, words = s.text.split(' '), lines = [];
+  let line = '';
+  for (const w of words) {
+    const t = line ? line + ' ' + w : w;
+    if (ctx.measureText(t).width > maxW && line) { lines.push(line); line = w; } else line = t;
+  }
+  lines.push(line);
+  const lh = 14, bw = Math.max(...lines.map(l => ctx.measureText(l).width)) + 14, bh = lines.length * lh + 10;
+  const bx = Math.min(Math.max(P.x - bw / 2, minX + 6), maxX - bw - 6), by = P.y - 52 - bh;
+  ctx.globalAlpha = Math.min(1, s.life * 3, (s.max - s.life) * 6);
+  ctx.fillStyle = '#fff'; ctx.strokeStyle = '#2b2233'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.roundRect(bx, by, bw, bh, 6); ctx.fill(); ctx.stroke();
+  ctx.beginPath();                                   // хвостик пузыря
+  ctx.moveTo(P.x - 5, by + bh); ctx.lineTo(P.x, by + bh + 8); ctx.lineTo(P.x + 5, by + bh);
+  ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#fff'; ctx.fillRect(P.x - 4, by + bh - 1, 8, 3);   // скрыть линию у основания
+  ctx.fillStyle = '#2b2233'; ctx.textAlign = 'center';
+  lines.forEach((l, i) => ctx.fillText(l, bx + bw / 2, by + 5 + (i + 1) * lh - 3));
+  ctx.globalAlpha = 1;
 }
 function drawHero(P) {
   // нимб-свечение и тень
