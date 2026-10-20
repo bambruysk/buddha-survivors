@@ -26,6 +26,8 @@
   .card:hover { background: #3b2f5f; }
   .card b { font-size: 17px; color: #ffd23f; }
   .card small { opacity: .7; }
+  #pauseBtn { position: fixed; top: 44px; right: 8px; width: 40px; height: 40px; padding: 0; font-size: 18px; border-radius: 8px;
+              background: rgba(20,16,31,.7); color: #fff; box-shadow: none; border: 2px solid rgba(255,255,255,.4); }
   .stat { font-size: 18px; line-height: 1.6; }
 </style>
 </head>
@@ -44,6 +46,14 @@
   <button id="play">В бой</button>
   <p style="font-size:13px">Двигаться: WASD / стрелки или палец по экрану (джойстик). На новом уровне — 1, 2, 3 или тап по карточке.</p>
   <div id="best" style="opacity:.7"></div>
+</div>
+
+<button id="pauseBtn" class="hidden" title="Пауза (Esc)">❚❚</button>
+
+<div id="pause" class="ov hidden">
+  <h1>Пауза</h1>
+  <button id="resume">Продолжить</button>
+  <button id="quit" style="background:#4a4e5a;color:#fff;box-shadow:0 4px 0 #2b2e36">Сдаться</button>
 </div>
 
 <div id="lvl" class="ov hidden">
@@ -619,8 +629,9 @@ addEventListener('keydown', e => {
   if (e.code.startsWith('Arrow') || e.code === 'Space') e.preventDefault();
   keys.add(e.code);
   if (state === 'levelup') { const i = ['Digit1', 'Digit2', 'Digit3'].indexOf(e.code); if (i >= 0) pick(i); }
-  if (e.code === 'KeyP' && (state === 'play' || state === 'paused')) state = state === 'play' ? 'paused' : 'play';
+  if ((e.code === 'Escape' || e.code === 'KeyP') && !e.repeat) togglePause();
 });
+document.addEventListener('visibilitychange', () => { if (document.hidden && state === 'play') togglePause(); });
 addEventListener('keyup', e => keys.delete(e.code));
 addEventListener('blur', () => keys.clear());
 cv.addEventListener('pointerdown', e => {
@@ -637,22 +648,37 @@ cv.addEventListener('pointermove', e => {
 const joyEnd = e => { if (e.pointerId === joy.id) { joy.active = false; joy.dx = joy.dy = 0; } };
 cv.addEventListener('pointerup', joyEnd); cv.addEventListener('pointercancel', joyEnd);
 
+function togglePause() {
+  if (state !== 'play' && state !== 'paused') return;
+  const pausing = state === 'play';
+  state = pausing ? 'paused' : 'play';
+  keys.clear(); joy.active = false; joy.dx = joy.dy = 0;
+  document.getElementById('pause').classList.toggle('hidden', !pausing);
+}
+
 function begin() {
   reset(); state = 'play'; joy.active = false;
   document.getElementById('menu').classList.add('hidden');
   document.getElementById('dead').classList.add('hidden');
   document.getElementById('lvl').classList.add('hidden');
+  document.getElementById('pause').classList.add('hidden');
 }
 document.getElementById('play').onclick = begin;
 document.getElementById('again').onclick = begin;
+document.getElementById('pauseBtn').onclick = togglePause;
+document.getElementById('resume').onclick = togglePause;
+document.getElementById('quit').onclick = () => { togglePause(); endGame(); };
 document.getElementById('best').textContent = best ? 'Рекорд: ' + mmss(best) : '';
 
 // ---------- цикл ----------
-let last = performance.now();
+const pauseBtn = document.getElementById('pauseBtn');
+let btnShown = false, last = performance.now();
 function frame(now) {
   const dt = Math.min(.05, (now - last) / 1000); last = now;
   if (state === 'play') update(dt);
   render();
+  const showBtn = state === 'play' || state === 'paused';
+  if (showBtn !== btnShown) { btnShown = showBtn; pauseBtn.classList.toggle('hidden', !showBtn); }
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
