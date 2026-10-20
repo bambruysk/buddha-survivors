@@ -203,6 +203,11 @@ const UPG = [
   { id: 'orbit', kind: 'w', name: 'Чакры',           max: 6, desc: l => l ? 'Больше чакр и урона' : 'Светящиеся чакры вращаются вокруг вас' },
   { id: 'aura',  kind: 'w', name: 'Аура покоя',      max: 6, desc: l => l ? 'Шире, чаще, сильнее' : 'Волна умиротворения отталкивает толпу' },
   { id: 'light', kind: 'w', name: 'Озарение',        max: 6, desc: l => l ? 'Больше молний, выше урон' : 'Молнии бьют случайных врагов' },
+  { id: 'lotus',   kind: 'w', name: 'Лотос',          max: 6, desc: l => l ? 'Больше лотосов, выше урон и дальность' : 'Лотос летит вперёд и возвращается, пробивая врагов' },
+  { id: 'incense', kind: 'w', name: 'Благовония',     max: 6, desc: l => l ? 'Гуще, шире и дольше едкий дым' : 'За вами остаётся едкий дым, который жжёт врагов' },
+  { id: 'gong',    kind: 'w', name: 'Гонг тишины',    max: 6, desc: l => l ? 'Чаще, дольше замедляет, сильнее бьёт' : 'Звон замедляет и бьёт всех вокруг' },
+  { id: 'eye',     kind: 'w', name: 'Третий глаз',    max: 6, desc: l => l ? 'Длиннее лучи, быстрее вращение, выше урон' : 'Вращающийся луч сжигает всех на пути' },
+  { id: 'xp',      kind: 'p', name: 'Мудрость',       max: 6, desc: () => '+20% к получаемому опыту' },
   { id: 'hp',    kind: 'p', name: 'Здоровое питание', max: 6, desc: () => '+25 макс. здоровья и лечение' },
   { id: 'spd',   kind: 'p', name: 'Лёгкая походка',   max: 6, desc: () => '+12% к скорости' },
   { id: 'mag',   kind: 'p', name: 'Магнитное сознание', max: 6, desc: () => '+40% радиус подбора' },
@@ -256,8 +261,9 @@ function reset() {
   G = { t: 0, kills: 0, lvl: 1, xp: 0, need: 5, uid: 0, nextHorde: 40, nextBoss: 180, bossN: 0, spawnT: 1,
         player: { x: 0, y: 0, hp: 100, max: 100, speed: 110, mag: 60, dmg: 1, regen: 0, face: 1, inv: 0, moving: false },
         enemies: [], bullets: [], gems: [], fx: [],
-        w: { bolt: 1, orbit: 0, aura: 0, light: 0 }, pl: { hp: 0, spd: 0, mag: 0, mig: 0, reg: 0 },
-        cd: { bolt: 0.3, aura: 1, light: 1 }, grid: new Map(), say: null, sayT: 5, hurtSayT: 0, eSayT: 4, killMark: 50 };
+        w: { bolt: 1, orbit: 0, aura: 0, light: 0, lotus: 0, incense: 0, gong: 0, eye: 0 }, pl: { hp: 0, spd: 0, mag: 0, mig: 0, reg: 0, xp: 0 },
+        lotus: [], clouds: [], eye: null,
+        cd: { bolt: 0.3, aura: 1, light: 1, lotus: 1, incense: 0, gong: 3 }, grid: new Map(), say: null, sayT: 5, hurtSayT: 0, eSayT: 4, killMark: 50 };
   recalc();
 }
 function recalc() {
@@ -414,6 +420,93 @@ function updateWeapons(dt) {
   }
 }
 
+// «Лотос»: летит вперёд, разворачивается и возвращается к герою
+function fireLotus() {
+  const P = G.player, n = G.w.lotus, count = 1 + Math.floor(n / 3);
+  const targets = nearest(count, 360);
+  if (!targets.length) return false;
+  for (let i = 0; i < count; i++) {
+    const t = targets[i % targets.length], a = Math.atan2(t.y - P.y, t.x - P.x) + (i >= targets.length ? i * .5 : 0);
+    G.lotus.push({ x: P.x, y: P.y, vx: Math.cos(a) * 300, vy: Math.sin(a) * 300, dist: 0, max: 180 + 14 * n,
+                   back: false, dmg: 14 + 5 * n, hit: [], spin: 0 });
+  }
+  return true;
+}
+function updateLotus(dt) {
+  const P = G.player;
+  for (const l of G.lotus) {
+    l.spin += dt * 12;
+    if (!l.back) { l.x += l.vx * dt; l.y += l.vy * dt; l.dist += 300 * dt; if (l.dist >= l.max) { l.back = true; l.hit = []; } }
+    else {
+      const dx = P.x - l.x, dy = P.y - l.y, d = Math.hypot(dx, dy) || 1;
+      l.x += dx / d * 380 * dt; l.y += dy / d * 380 * dt;
+      if (d < 16) l.done = true;
+    }
+    forNear(l.x, l.y, 24, e => {
+      if (l.hit.includes(e.id) || Math.hypot(e.x - l.x, e.y - l.y) > e.r + 10) return;
+      l.hit.push(e.id);
+      const sp = Math.hypot(l.vx, l.vy) || 1;
+      hitEnemy(e, l.dmg, l.vx / sp * 50, l.vy / sp * 50);
+    });
+  }
+  G.lotus = G.lotus.filter(l => !l.done);
+}
+
+function updateWeapons2(dt) {
+  const P = G.player, w = G.w, cd = G.cd;
+  if (w.lotus) {
+    cd.lotus -= dt;
+    if (cd.lotus <= 0) cd.lotus = fireLotus() ? Math.max(1.2, 2.4 - .2 * w.lotus) : .2;
+  }
+  updateLotus(dt);
+
+  // «Благовония»: облачка дыма остаются на месте и жгут тех, кто в них стоит
+  if (w.incense) {
+    cd.incense -= dt;
+    if (cd.incense <= 0) {
+      cd.incense = Math.max(.25, .5 - .04 * w.incense);
+      const life = 3 + .4 * w.incense;
+      if (G.clouds.length < 40) G.clouds.push({ x: P.x, y: P.y, r: 26 + 3 * w.incense, life, max: life, tick: 0 });
+    }
+  }
+  for (const c of G.clouds) {
+    c.life -= dt; c.tick -= dt;
+    if (c.tick <= 0) {
+      c.tick = .4;
+      forNear(c.x, c.y, c.r + 16, e => { if (Math.hypot(e.x - c.x, e.y - c.y) < c.r + e.r * .5) hitEnemy(e, 5 + 2.5 * w.incense, 0, 0, false); });
+    }
+  }
+  G.clouds = G.clouds.filter(c => c.life > 0);
+
+  // «Гонг тишины»: волна замедляет и бьёт всех вокруг
+  if (w.gong) {
+    cd.gong -= dt;
+    if (cd.gong <= 0) {
+      cd.gong = Math.max(2.5, 7 - .6 * w.gong);
+      addFx({ k: 'ring', x: P.x, y: P.y, r: 0, maxr: 230, life: .6, max: .6, col: '142,203,255' });
+      forNear(P.x, P.y, 250, e => {
+        if (Math.hypot(e.x - P.x, e.y - P.y) > 230 + e.r) return;
+        e.slow = 1.5 + .3 * w.gong;
+        hitEnemy(e, 8 + 3 * w.gong, 0, 0, false);
+      });
+    }
+  }
+
+  // «Третий глаз»: вращающийся луч (с 3-го уровня — два луча в разные стороны)
+  if (w.eye) {
+    const n = w.eye, len = 110 + 12 * n, beams = n >= 3 ? 2 : 1, ang = G.t * (1.6 + .15 * n);
+    G.eye = { ang, len, beams };
+    forNear(P.x, P.y, len + 20, e => {
+      if ((e.eCd || 0) > 0) return;
+      for (let b = 0; b < beams; b++) {
+        const a = ang + b * Math.PI, dx = Math.cos(a), dy = Math.sin(a), px = e.x - P.x, py = e.y - P.y;
+        const t = Math.max(0, Math.min(len, px * dx + py * dy));
+        if (Math.hypot(px - dx * t, py - dy * t) < e.r + 7) { e.eCd = .3; hitEnemy(e, 4 + 2 * n, dx * 30, dy * 30, false); break; }
+      }
+    });
+  } else G.eye = null;
+}
+
 function updateBullets(dt) {
   for (const b of G.bullets) {
     b.x += b.vx * dt; b.y += b.vy * dt; b.life -= dt;
@@ -471,12 +564,14 @@ function update(dt) {
     if (e.dead) continue;
     e.flash = Math.max(0, e.flash - dt); e.oCd = Math.max(0, e.oCd - dt);
     if (e.say && (e.say.life -= dt) <= 0) e.say = null;
+    e.slow = Math.max(0, (e.slow || 0) - dt); e.eCd = Math.max(0, (e.eCd || 0) - dt);
+    const sm = e.slow > 0 ? .4 : 1;
     let dx = P.x - e.x, dy = P.y - e.y;
     const d = Math.hypot(dx, dy) || 1;
     dx /= d; dy /= d;
     let mx = dx, my = dy;
     if (e.type === 'junkie') { const s = Math.sin(G.t * 8 + e.id) * .7; mx += -dy * s; my += dx * s; }
-    e.x += (mx * e.spd + e.kx) * dt; e.y += (my * e.spd + e.ky) * dt;
+    e.x += (mx * e.spd * sm + e.kx) * dt; e.y += (my * e.spd * sm + e.ky) * dt;
     const decay = Math.min(1, 9 * dt); e.kx -= e.kx * decay; e.ky -= e.ky * decay;
     if (Math.abs(dx) > .2) e.face = dx > 0 ? 1 : -1;
     forNear(e.x, e.y, e.r * 2, o => {
@@ -497,6 +592,7 @@ function update(dt) {
   }
 
   updateWeapons(dt);
+  updateWeapons2(dt);
   updateBullets(dt);
 
   // самоцветы
@@ -508,7 +604,7 @@ function update(dt) {
     }
     if (d < 11) {
       g.got = true;
-      if (g.heal) P.hp = Math.min(P.max, P.hp + g.heal); else G.xp += g.v;
+      if (g.heal) P.hp = Math.min(P.max, P.hp + g.heal); else G.xp += g.v * (1 + .2 * G.pl.xp);
     }
   }
   G.gems = G.gems.filter(g => !g.got);
@@ -593,8 +689,15 @@ function render() {
     ctx.fillStyle = '#fff'; ctx.fillRect(-s / 2, -s / 2, s / 2, s / 2); ctx.restore();
   }
   for (const f of G.fx) if (f.k === 'ring') {
-    ctx.strokeStyle = `rgba(255,230,120,${f.life / f.max * .8})`; ctx.lineWidth = 4;
+    ctx.strokeStyle = `rgba(${f.col || '255,230,120'},${f.life / f.max * .8})`; ctx.lineWidth = 4;
     ctx.beginPath(); ctx.arc(f.x, f.y, Math.max(1, f.r), 0, 6.283); ctx.stroke();
+  }
+
+  for (const c of G.clouds) {
+    if (!inView(c.x, c.y, c.r)) continue;
+    const a = Math.min(1, c.life / c.max * 1.5) * .35, pr = c.r + Math.sin(G.t * 3 + c.x) * 2;
+    ctx.fillStyle = `rgba(190,170,225,${a})`; ctx.beginPath(); ctx.arc(c.x, c.y, pr, 0, 6.283); ctx.fill();
+    ctx.fillStyle = `rgba(235,225,250,${a * .8})`; ctx.beginPath(); ctx.arc(c.x - 3, c.y - 3, pr * .55, 0, 6.283); ctx.fill();
   }
 
   // враги и герой по глубине
@@ -623,6 +726,18 @@ function render() {
     ctx.fillStyle = 'rgba(255,210,63,.35)'; ctx.beginPath(); ctx.arc(x, y, 10, 0, 6.283); ctx.fill();
     ctx.fillStyle = PAL.y; ctx.beginPath(); ctx.arc(x, y, 6, 0, 6.283); ctx.fill();
     ctx.fillStyle = '#fff'; ctx.fillRect(x - 2, y - 3, 3, 3);
+  }
+  if (G.eye) for (let b = 0; b < G.eye.beams; b++) {
+    const a = G.eye.ang + b * Math.PI, ex = P.x + Math.cos(a) * G.eye.len, ey = P.y - 6 + Math.sin(a) * G.eye.len;
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = 'rgba(255,80,200,.35)'; ctx.lineWidth = 14; ctx.beginPath(); ctx.moveTo(P.x, P.y - 6); ctx.lineTo(ex, ey); ctx.stroke();
+    ctx.strokeStyle = '#ffd6f5'; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(P.x, P.y - 6); ctx.lineTo(ex, ey); ctx.stroke();
+    ctx.lineCap = 'butt';
+  }
+  for (const l of G.lotus) {   // лотос: пять вращающихся лепестков
+    ctx.fillStyle = '#ff9ecb';
+    for (let i = 0; i < 5; i++) { const a = l.spin + i * 1.2566; ctx.beginPath(); ctx.arc(l.x + Math.cos(a) * 7, l.y + Math.sin(a) * 7, 5, 0, 6.283); ctx.fill(); }
+    ctx.fillStyle = PAL.y; ctx.beginPath(); ctx.arc(l.x, l.y, 4, 0, 6.283); ctx.fill();
   }
   for (const b of G.bullets) {
     ctx.fillStyle = 'rgba(255,230,120,.4)'; ctx.fillRect(b.x - b.vx * .03 - 3, b.y - b.vy * .03 - 3, 6, 6);
@@ -667,13 +782,13 @@ function render() {
   shadowText(Math.ceil(P.hp) + ' / ' + P.max, hx + hw / 2, hy + 17);
 
   // оружие и улучшения
-  const WEAPONS = [['bolt', '#ffd23f'], ['orbit', '#ffffff'], ['aura', '#ff9ecb'], ['light', '#8ecbff']];
+  const WEAPONS = [['bolt', '#ffd23f'], ['orbit', '#ffffff'], ['aura', '#ff9ecb'], ['light', '#8ecbff'], ['lotus', '#ff9ecb'], ['incense', '#c9b3ea'], ['gong', '#8ecbff'], ['eye', '#ff50c8']];
   let sx = hx;
   for (const [id, col] of WEAPONS) {
     const lv = G.w[id]; if (!lv) continue;
     drawSlot(sx, hy + hh + 10, 36, id, col, lv); sx += 42;
   }
-  const PASS = [['hp', 'ЗД'], ['spd', 'СК'], ['mag', 'МГ'], ['mig', 'СИ'], ['reg', 'МД']];
+  const PASS = [['hp', 'ЗД'], ['spd', 'СК'], ['mag', 'МГ'], ['mig', 'СИ'], ['reg', 'МД'], ['xp', 'МУ']];
   sx = hx;
   for (const [id, lab] of PASS) {
     const lv = G.pl[id]; if (!lv) continue;
@@ -700,6 +815,10 @@ function drawSlot(x, y, size, id, col, lv) {
   }
   else if (id === 'aura') { ctx.beginPath(); ctx.arc(cx, cy, 5, 0, 6.283); ctx.stroke(); ctx.beginPath(); ctx.arc(cx, cy, 10, 0, 6.283); ctx.stroke(); }
   else if (id === 'light') { ctx.beginPath(); ctx.moveTo(cx + 3, cy - 11); ctx.lineTo(cx - 5, cy + 1); ctx.lineTo(cx + 1, cy + 1); ctx.lineTo(cx - 3, cy + 11); ctx.stroke(); }
+  else if (id === 'lotus') { for (let i = 0; i < 5; i++) { const a = i * 1.2566; ctx.beginPath(); ctx.arc(cx + Math.cos(a) * 7, cy + Math.sin(a) * 7, 4, 0, 6.283); ctx.fill(); } ctx.fillStyle = PAL.y; ctx.beginPath(); ctx.arc(cx, cy, 3, 0, 6.283); ctx.fill(); }
+  else if (id === 'incense') { for (let i = -1; i <= 1; i++) { ctx.beginPath(); ctx.moveTo(cx + i * 7, cy + 10); ctx.quadraticCurveTo(cx + i * 7 + 5, cy + 3, cx + i * 7, cy - 3); ctx.quadraticCurveTo(cx + i * 7 - 4, cy - 8, cx + i * 7 + 1, cy - 12); ctx.stroke(); } }
+  else if (id === 'gong') { ctx.beginPath(); ctx.arc(cx, cy, 10, 0, 6.283); ctx.stroke(); ctx.beginPath(); ctx.arc(cx, cy, 4, 0, 6.283); ctx.fill(); }
+  else if (id === 'eye') { ctx.beginPath(); ctx.ellipse(cx, cy, 11, 6, 0, 0, 6.283); ctx.stroke(); ctx.beginPath(); ctx.arc(cx, cy, 3.5, 0, 6.283); ctx.fill(); }
   else { ctx.font = 'bold 12px monospace'; ctx.textAlign = 'center'; ctx.fillText(id, cx, cy + 4); }
   ctx.font = 'bold 11px monospace'; ctx.textAlign = 'right';
   ctx.fillStyle = '#000'; ctx.fillText(lv, x + size - 2, y + size - 2);
