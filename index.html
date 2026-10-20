@@ -10,6 +10,9 @@
   canvas#c { position: fixed; inset: 0; width: 100%; height: 100%; touch-action: none; display: block; }
   .ov { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
         gap: 14px; background: rgba(15,10,28,.88); text-align: center; padding: 16px; box-sizing: border-box; overflow: auto; }
+  .ov { justify-content: flex-start; }
+  .ov > :first-child { margin-top: auto; }
+  .ov > :last-child { margin-bottom: auto; }
   .hidden { display: none; }
   h1 { margin: 0; font-size: clamp(22px, 6vw, 40px); color: #ffd23f; letter-spacing: 1px; text-shadow: 0 3px 0 #7a4a00; }
   h2 { margin: 0; font-size: clamp(20px, 5vw, 30px); color: #ffd23f; }
@@ -28,6 +31,23 @@
   .card small { opacity: .7; }
   #pauseBtn { position: fixed; top: 64px; right: 8px; width: 40px; height: 40px; padding: 0; font-size: 18px; border-radius: 8px;
               background: rgba(20,16,31,.7); color: #fff; box-shadow: none; border: 2px solid rgba(255,255,255,.4); }
+  .hero-card { box-sizing: border-box; width: 136px; background: #2c2347; border: 2px solid #4a4e5a; border-radius: 10px; padding: 8px; cursor: pointer;
+               display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 12px; color: #eee; }
+  .hero-card b { font-size: 13px; color: #ffd23f; overflow-wrap: anywhere; }
+  .hero-card.sel { border-color: #ffd23f; background: #3b2f5f; }
+  .hero-card canvas { image-rendering: pixelated; }
+  button.sec { background: #4a4e5a; color: #fff; box-shadow: 0 4px 0 #2b2e36; }
+  #toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 30; background: #2c2347; border: 2px solid #ffd23f;
+           border-radius: 10px; padding: 10px 16px; font-size: 14px; text-align: center; box-shadow: 0 6px 20px rgba(0,0,0,.5);
+           animation: toastIn .3s ease-out; max-width: 90vw; }
+  #toast span { opacity: .75; font-size: 12px; }
+  @keyframes toastIn { from { transform: translate(-50%, 30px); opacity: 0; } to { transform: translate(-50%, 0); opacity: 1; } }
+  #achList { display: flex; flex-direction: column; gap: 6px; max-width: 480px; width: 100%; text-align: left; }
+  .ach { background: #2c2347; border-radius: 8px; padding: 8px 12px; font-size: 14px; }
+  .ach.off { opacity: .45; }
+  .ach small { display: block; opacity: .75; font-size: 12px; }
+  .hero-card.locked { opacity: .55; cursor: not-allowed; }
+  #heroes { flex-wrap: wrap; max-width: 600px; gap: 10px; }
   .stat { font-size: 18px; line-height: 1.6; }
 </style>
 </head>
@@ -36,16 +56,24 @@
 
 <div id="menu" class="ov">
   <h1>СУПЕРПРОСВЕТЛЁННЫЙ</h1>
-  <canvas id="heroPic" width="96" height="112" style="image-rendering:pixelated"></canvas>
+  <div id="heroes" class="row" style="align-items:stretch"></div>
   <p>Вас окружила толпа. Просветление стреляет само — вам остаётся двигаться, собирать озарения и выбирать, чем светить дальше.</p>
   <div class="row">
     <div><canvas id="p1" width="48" height="48"></canvas>хиппи</div>
     <div><canvas id="p2" width="48" height="48"></canvas>либерал</div>
     <div><canvas id="p3" width="48" height="48"></canvas>торчок</div>
   </div>
-  <button id="play">В бой</button>
+  <div class="row"><button id="play">В бой</button><button id="achBtn" class="sec">Достижения</button></div>
   <p style="font-size:13px">Двигаться: WASD / стрелки или палец по экрану (джойстик). На новом уровне — 1, 2, 3 или тап по карточке.</p>
   <div id="best" style="opacity:.7"></div>
+</div>
+
+<div id="toast" class="hidden"></div>
+
+<div id="achScreen" class="ov hidden">
+  <h2>Достижения</h2>
+  <div id="achList"></div>
+  <button id="achClose" class="sec">Назад</button>
 </div>
 
 <button id="pauseBtn" class="hidden" title="Пауза (Esc)">❚❚</button>
@@ -63,9 +91,9 @@
 </div>
 
 <div id="dead" class="ov hidden">
-  <h1>Вы вернулись в сансару</h1>
+  <h1 id="deadTitle">Вы вернулись в сансару</h1>
   <div class="stat" id="stats"></div>
-  <button id="again">Ещё раз</button>
+  <div class="row"><button id="again">Ещё раз</button><button id="toMenu" class="sec">Выбор героя</button></div>
 </div>
 
 <script>
@@ -74,7 +102,7 @@
 
 // ---------- пиксельные спрайты ----------
 const PAL = { y: '#ffd23f', w: '#f4f1ff', g: '#b9b2d6', s: '#f0c294', k: '#2b2233', n: '#7a4a2a', r: '#d94141',
-              p: '#c850c0', c: '#3ec6c6', b: '#3b5bdb', e: '#d9c7a0', u: '#8b5a2b', z: '#9bc98a', d: '#4a4e5a', v: '#8e44ad' };
+              p: '#c850c0', c: '#3ec6c6', b: '#3b5bdb', e: '#d9c7a0', u: '#8b5a2b', o: '#e67e22', a: '#d9b44a', l: '#3f8f4a', f: '#f39c12', z: '#9bc98a', d: '#4a4e5a', v: '#8e44ad' };
 
 const HERO = [
   '...yyyyyy...',
@@ -91,6 +119,96 @@ const HERO = [
   '.gwwwwwwwwg.',
   '..gwwwwwwg..',
   '..ss....ss..',
+];
+const CHARON = [
+  '...kkkkkk...',
+  '..kddddddk..',
+  '.kddddddddk.',
+  '.kdggggggdk.',
+  '.kdgcggcgdk.',
+  '.kdggggggdk.',
+  '..kdggggdk..',
+  '..kddddddk..',
+  '.kddddddddk.',
+  'kddddyyddddk',
+  'kdddddddddk.',
+  'kdddkdddkddk',
+  'k.dk.dk.dk..',
+];
+const HERMIT = [
+  '...uuuuuu...',
+  '..uuuuuuuu..',
+  '.uussssssuu.',
+  '.uuskssksuu.',
+  '.uuswwwwsuu.',
+  '..uwwwwwwu..',
+  '..uwwwwwwu..',
+  '..uuuuuuuu..',
+  '.uuuuuuuuuu.',
+  '.uuyyyyyyuu.',
+  '.uuuuuuuuuu.',
+  '..uuuuuuuu..',
+  '..ss....ss..',
+];
+const MONK = [
+  '....ssss....',
+  '...ssssss...',
+  '...skssks...',
+  '...ssssss...',
+  '....ssss....',
+  '..oooooooo..',
+  '.oooooooooo.',
+  'sooorrrrooos',
+  '.oooooooooo.',
+  '.oooooooooo.',
+  '..oooooooo..',
+  '..oo....oo..',
+  '..ss....ss..',
+];
+const GARDENER = [
+  '...aaaaaa...',
+  '.aaaaaaaaaa.',
+  '...ssssss...',
+  '...skssks...',
+  '...ssssss...',
+  '..llllllll..',
+  '.llllllllll.',
+  'slllyyyyllls',
+  '.llllllllll.',
+  '.llllllllll.',
+  '..llllllll..',
+  '..nn....nn..',
+  '..nn....nn..',
+];
+const CAT = [
+  '..f.yyyy.f..',
+  '..ffffffff..',
+  '.ffffffffff.',
+  '.ffkffffkff.',
+  '.ffffwwffff.',
+  '..ffffffff..',
+  '..ffwwwwff..',
+  '.ffwwwwwwff.',
+  '.ffwwwwwwff.',
+  '.ffffffffff.',
+  '..ffffffff..',
+  '..ff....ff..',
+  '..ff....ff.f',
+];
+const YOGI = [
+  '.....kk.....',
+  '....kkkk....',
+  '...ssssss...',
+  '...skssks...',
+  '...ssssss...',
+  '....ssss....',
+  '..ssssssss..',
+  '.sssbbbbsss.',
+  '..ssssssss..',
+  '.bbbbbbbbbb.',
+  'bbbbbbbbbbbb',
+  '.bbbbbbbbbb.',
+  '..gggggggg..',
 ];
 const HIPPIE = [
   '...nnnnnn...',
@@ -145,7 +263,7 @@ function makeSprite(rows) {
   wx.drawImage(c, 0, 0); wx.globalCompositeOperation = 'source-in'; wx.fillStyle = '#fff'; wx.fillRect(0, 0, w, h);
   return { c, white: wc, w, h };
 }
-const SPR = { hero: makeSprite(HERO), hippie: makeSprite(HIPPIE), liberal: makeSprite(LIBERAL), junkie: makeSprite(JUNKIE) };
+const SPR = { hero: makeSprite(HERO), charon: makeSprite(CHARON), hermit: makeSprite(HERMIT), monk: makeSprite(MONK), gardener: makeSprite(GARDENER), cat: makeSprite(CAT), yogi: makeSprite(YOGI), hippie: makeSprite(HIPPIE), liberal: makeSprite(LIBERAL), junkie: makeSprite(JUNKIE) };
 
 function drawSpr(x2, spr, x, y, scale, flip, flash) {
   x2.save();
@@ -161,7 +279,7 @@ function pic(id, spr, scale) {
   x2.imageSmoothingEnabled = false;
   drawSpr(x2, spr, el.width / 2, el.height / 2, scale, false, false);
 }
-pic('heroPic', SPR.hero, 7); pic('p1', SPR.hippie, 3.5); pic('p2', SPR.liberal, 3.5); pic('p3', SPR.junkie, 3.5);
+pic('p1', SPR.hippie, 3.5); pic('p2', SPR.liberal, 3.5); pic('p3', SPR.junkie, 3.5);
 
 // ---------- канвас ----------
 const cv = document.getElementById('c'), ctx = cv.getContext('2d');
@@ -199,7 +317,8 @@ const TYPES = {
 };
 
 const UPG = [
-  { id: 'bolt',  kind: 'w', name: 'Луч мантры',      max: 8, desc: () => 'Больше лучей, выше урон и скорость стрельбы' },
+  { id: 'bolt',  kind: 'w', name: 'Луч мантры',      max: 8, desc: l => l ? 'Больше лучей, выше урон и скорость стрельбы' : 'Золотой луч сам летит в ближайшего врага' },
+  { id: 'crowbar', kind: 'w', name: 'Боевой лом',    max: 6, desc: l => l ? 'Длиннее, быстрее, больше ломов и урона' : 'Лом быстро крутится вокруг вас и крушит всё рядом' },
   { id: 'orbit', kind: 'w', name: 'Чакры',           max: 6, desc: l => l ? 'Больше чакр и урона' : 'Светящиеся чакры вращаются вокруг вас' },
   { id: 'aura',  kind: 'w', name: 'Аура покоя',      max: 6, desc: l => l ? 'Шире, чаще, сильнее' : 'Волна умиротворения отталкивает толпу' },
   { id: 'light', kind: 'w', name: 'Озарение',        max: 6, desc: l => l ? 'Больше молний, выше урон' : 'Молнии бьют случайных врагов' },
@@ -214,6 +333,72 @@ const UPG = [
   { id: 'mig',   kind: 'p', name: 'Сила духа',        max: 6, desc: () => '+15% к урону' },
   { id: 'reg',   kind: 'p', name: 'Медитация',        max: 6, desc: () => '+0.5 здоровья в секунду' },
 ];
+
+// ---------- герои ----------
+const HEROES = {
+  buddha:   { id: 'buddha', name: 'Суперпросветлённый', spr: 'hero', hp: 100, speed: 110, start: { bolt: 1 }, glow: '255,210,63',
+              desc: 'Луч мантры. Сбалансированный.', dead: 'Вы вернулись в сансару' },
+  charon:   { id: 'charon', name: 'Харон Подземный', spr: 'charon', hp: 140, speed: 100, start: { crowbar: 1 }, glow: '90,255,220',
+              desc: 'Боевой лом. Крепче, но медленнее.', dead: 'Харон отвёз вас на тот берег' },
+  hermit:   { id: 'hermit', name: 'Отшельник', spr: 'hermit', hp: 160, speed: 85, regen: .5, start: { incense: 1 }, glow: '180,150,100',
+              desc: 'Благовония. Очень крепкий, лечится, но медленный.', dead: 'Отшельник вернулся в пещеру' },
+  monk:     { id: 'monk', name: 'Монах-кунг-фу', spr: 'monk', hp: 110, speed: 115, dmg: 1.1, start: { aura: 1 }, glow: '255,150,60', unlock: 'survive3',
+              desc: 'Аура покоя. Быстрый, бьёт на 10% сильнее.', dead: 'Монах ушёл в горы' },
+  gardener: { id: 'gardener', name: 'Дзен-садовник', spr: 'gardener', hp: 100, speed: 105, mag: 1.6, start: { lotus: 1 }, glow: '120,230,120', unlock: 'boss',
+              desc: 'Лотос. Собирает опыт издалека.', dead: 'Сад зарос без вас' },
+  yogi:     { id: 'yogi', name: 'Йог-левитатор', spr: 'yogi', hp: 85, speed: 118, dmg: 1.15, start: { orbit: 1 }, glow: '140,150,255', unlock: 'lvl10',
+              desc: 'Чакры. Парит, быстрый, бьёт на 15% сильнее.', dead: 'Йог вознёсся окончательно' },
+  cat:      { id: 'cat', name: 'Кот-даос', spr: 'cat', hp: 80, speed: 125, lives: 1, start: { eye: 1 }, glow: '255,170,60', unlock: 'total500',
+              desc: 'Третий глаз. Очень быстрый, одна лишняя жизнь.', dead: 'Кот ушёл гулять сам по себе' },
+};
+
+// ---------- сохранение и достижения ----------
+const SAVE_KEY = 'surv-save';
+const save = (() => {
+  const def = { ach: {}, kills: 0 };
+  try { const v = JSON.parse(localStorage.getItem(SAVE_KEY)); return v && typeof v === 'object' ? Object.assign(def, v) : def; } catch (e) { return def; }
+})();
+const persist = () => { try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (e) {} };
+const unlocked = h => !h.unlock || !!save.ach[h.unlock];
+let heroId = (() => { try { const h = localStorage.getItem('surv-hero'); return HEROES[h] && unlocked(HEROES[h]) ? h : 'buddha'; } catch (e) { return 'buddha'; } })();
+
+const ACH = [
+  { id: 'first',    name: 'Первое озарение',       desc: 'Победите первого врага',                 ok: () => G.kills >= 1 },
+  { id: 'survive1', name: 'Новичок',               desc: 'Продержитесь 1 минуту',                   ok: () => G.t >= 60 },
+  { id: 'survive3', name: 'Выдержка',              desc: 'Продержитесь 3 минуты',                   ok: () => G.t >= 180 },
+  { id: 'survive5', name: 'Железные нервы',        desc: 'Продержитесь 5 минут',                    ok: () => G.t >= 300 },
+  { id: 'boss',     name: 'Охотник на гуру',       desc: 'Победите Главного хиппи',                 ok: () => G.bossKilled },
+  { id: 'kills100', name: 'Сотня иллюзий',         desc: 'Победите 100 врагов за один забег',       ok: () => G.kills >= 100 },
+  { id: 'total500', name: 'Поток сознания',        desc: 'Победите 500 врагов за всё время',        ok: () => save.kills + G.kills >= 500 },
+  { id: 'lvl10',    name: 'Десятая ступень',       desc: 'Достигните 10 уровня просветления',       ok: () => G.lvl >= 10 },
+  { id: 'arsenal',  name: 'Арсенал просветления',  desc: 'Держите 4 разных оружия одновременно',    ok: () => Object.values(G.w).filter(v => v > 0).length >= 4 },
+  { id: 'master',   name: 'Мастер',                desc: 'Прокачайте любое оружие до 6 уровня',     ok: () => Object.values(G.w).some(v => v >= 6) },
+  { id: 'untouch',  name: 'Неуязвимый',            desc: '60 секунд подряд без урона после 1:30',   ok: () => G.t >= 90 && G.t - G.lastHurt >= 60 },
+  { id: 'all',      name: 'Коллекционер',          desc: 'Откройте всех героев',                    ok: () => Object.values(HEROES).every(unlocked) },
+];
+const toastQ = [];
+let toastBusy = false;
+function toast(title, sub) {
+  toastQ.push([title, sub]);
+  if (!toastBusy) nextToast();
+}
+function nextToast() {
+  const t = toastQ.shift(), el = document.getElementById('toast');
+  if (!t) { toastBusy = false; el.classList.add('hidden'); return; }
+  toastBusy = true;
+  el.innerHTML = `<b>🏆 ${t[0]}</b>${t[1] ? '<br><span>' + t[1] + '</span>' : ''}`;
+  el.classList.remove('hidden');
+  setTimeout(nextToast, 3200);
+}
+function checkAch() {
+  for (const a of ACH) {
+    if (save.ach[a.id] || !a.ok()) continue;
+    save.ach[a.id] = true; persist();
+    const opened = Object.values(HEROES).filter(h => h.unlock === a.id);
+    opened.forEach(h => G.newHeroes.push(h.name));
+    toast('Достижение: ' + a.name, opened.length ? 'Открыт герой: ' + opened.map(h => h.name).join(', ') : a.desc);
+  }
+}
 
 // ---------- фразочки героя ----------
 const SAY = {
@@ -238,7 +423,31 @@ const SAY = {
   hurt: ['Это не боль, это иллюзия!', 'Тело — оболочка. Но больно же!', 'Отпусти... отпусти... ай!'],
 };
 const pickFrom = a => a[(Math.random() * a.length) | 0];
-const pickSay = k => pickFrom(k === 'idle' ? SAY.idle.concat(SAY.idle2) : SAY[k]);
+const SAY_CHARON = {
+  idle: [
+    'Монетку за проезд, пожалуйста.', 'Стикс сегодня неспокойный.', 'Я перевозил и не таких.', 'Живые такие шумные...',
+    'Лодка одна. Мест нет.', 'Ломик — лучший друг перевозчика.', 'Никто не уходит без оплаты.',
+    'Все спешат ко мне. Но почему-то не в ту сторону.', 'Смерть — это очередь. Но я быстро.', 'Обол с носа — и добро пожаловать в Аид.',
+    'Это не драка. Это таможенный досмотр.', 'Тартар по вам плачет. И по хиппи тоже.', 'Вам куда? В Аид? Билетов нет.',
+  ],
+  kills: ['Очередь в Аид растёт.', 'Ещё полсотни пассажиров.', 'Лодка скоро не вместит.'],
+  level: ['Рабочий день удлиняется.', 'Прибавка? Нет, просто сила.', 'Ещё монета в кассу.'],
+  boss: ['Этот пассажир не влезет в лодку.', 'Тяжёлый случай. Нужен лом побольше.'],
+  hurt: ['Я уже мёртвый, мне не страшно... Ай!', 'Больно. А думал, привык.', 'Страховка не покрывает.'],
+};
+const SAY_HERO = {
+  charon: SAY_CHARON,
+  hermit: { idle: ['Тридцать лет в пещере. И вот — вы.', 'Тишина кончилась, как и мой запас сухарей.', 'Я пришёл за покоем, а не за вами.', 'Пещера была лучше.', 'Дым — мой язык. Понимаете?', 'Подожду. Я умею.'] },
+  monk: { idle: ['Бей не кулаком, а намерением!', 'Ци течёт. Враг — нет.', 'Тридцать лет тренировок ради этих хиппи.', 'Моя ладонь знает ответ.', 'Дыши. Бей. Дыши.', 'Это не драка. Это урок.'] },
+  gardener: { idle: ['Всё растёт. Особенно проблемы.', 'Лотос не торопится, но находит цель.', 'Сорняки надо пропалывать.', 'Красота — в граблях.', 'Не топчите клумбу!', 'Тут надо подрезать... слегка.'] },
+  cat: { idle: ['Мяу. То есть ом.', 'Я просто хочу спать на солнышке.', 'Не трогайте хвост — это чакра.', 'Лапы чистые, карма тоже.', 'Мррр... нирвана в миске.', 'Девять жизней? Одна запасная — и хватит.'] },
+  yogi: { idle: ['Я не лечу — я нахожусь выше.', 'Ножки на земле? Нет, спасибо.', 'Гравитация — это иллюзия.', 'Левитирую вдумчиво.', 'Подниматься — это тоже путь.', 'Шарики мои, шарики вертятся...'] },
+};
+const pickSay = k => {
+  const own = SAY_HERO[G.hero.id], base = G.hero.id === 'buddha' ? SAY : null;
+  const list = (own && own[k]) || (k === 'idle' && base ? base.idle.concat(base.idle2) : SAY[k]);
+  return pickFrom(list);
+};
 function say(text, dur = 3.2) { G.say = { text, life: dur, max: dur }; }
 
 // реплики врагов (по типу)
@@ -258,18 +467,20 @@ const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
 let best = lsGet('surv-best');
 
 function reset() {
-  G = { t: 0, kills: 0, lvl: 1, xp: 0, need: 5, uid: 0, nextHorde: 40, nextBoss: 180, bossN: 0, spawnT: 1,
-        player: { x: 0, y: 0, hp: 100, max: 100, speed: 110, mag: 60, dmg: 1, regen: 0, face: 1, inv: 0, moving: false },
+  const hero = HEROES[heroId];
+  G = { hero, t: 0, kills: 0, lvl: 1, xp: 0, need: 5, uid: 0, nextHorde: 40, nextBoss: 180, bossN: 0, spawnT: 1,
+        player: { x: 0, y: 0, hp: hero.hp, max: hero.hp, speed: hero.speed, mag: 60, dmg: 1, regen: 0, face: 1, inv: 0, moving: false },
         enemies: [], bullets: [], gems: [], fx: [],
-        w: { bolt: 1, orbit: 0, aura: 0, light: 0, lotus: 0, incense: 0, gong: 0, eye: 0 }, pl: { hp: 0, spd: 0, mag: 0, mig: 0, reg: 0, xp: 0 },
-        lotus: [], clouds: [], eye: null,
-        cd: { bolt: 0.3, aura: 1, light: 1, lotus: 1, incense: 0, gong: 3 }, grid: new Map(), say: null, sayT: 5, hurtSayT: 0, eSayT: 4, killMark: 50 };
+        w: Object.assign({ bolt: 0, orbit: 0, aura: 0, light: 0, lotus: 0, incense: 0, gong: 0, eye: 0, crowbar: 0 }, hero.start), pl: { hp: 0, spd: 0, mag: 0, mig: 0, reg: 0, xp: 0 },
+        lotus: [], clouds: [], eye: null, bar: null,
+        cd: { bolt: 0.3, aura: 1, light: 1, lotus: 1, incense: 0, gong: 3 }, grid: new Map(), say: null, sayT: 5, hurtSayT: 0, eSayT: 4, killMark: 50,
+        lives: hero.lives || 0, lastHurt: 0, bossKilled: false, newHeroes: [], achT: .5 };
   recalc();
 }
 function recalc() {
   const P = G.player, pl = G.pl;
-  P.max = 100 + 25 * pl.hp; P.speed = 110 * (1 + .12 * pl.spd); P.mag = 60 * (1 + .4 * pl.mag);
-  P.dmg = 1 + .15 * pl.mig; P.regen = .5 * pl.reg;
+  P.max = G.hero.hp + 25 * pl.hp; P.speed = G.hero.speed * (1 + .12 * pl.spd); P.mag = 60 * (G.hero.mag || 1) * (1 + .4 * pl.mag);
+  P.dmg = (G.hero.dmg || 1) * (1 + .15 * pl.mig); P.regen = (G.hero.regen || 0) + .5 * pl.reg;
 }
 reset();
 
@@ -334,6 +545,7 @@ function hitEnemy(e, dmg, kx, ky, showNum = true) {
 }
 function killEnemy(e) {
   e.dead = true; G.kills++;
+  if (e.boss) G.bossKilled = true;
   const n = e.boss ? 10 : 1;
   for (let i = 0; i < n; i++) {
     G.gems.push({ x: e.x + (n > 1 ? (Math.random() - .5) * 60 : 0), y: e.y + (n > 1 ? (Math.random() - .5) * 60 : 0), v: e.boss ? 3 : e.xp });
@@ -377,9 +589,11 @@ function orbPos(i) {
 
 function updateWeapons(dt) {
   const P = G.player, w = G.w, cd = G.cd;
-  cd.bolt -= dt;
-  if (cd.bolt <= 0 && fireBolt()) cd.bolt = Math.max(.4, 1 - .07 * w.bolt);
-  else if (cd.bolt <= 0) cd.bolt = .1;
+  if (w.bolt) {
+    cd.bolt -= dt;
+    if (cd.bolt <= 0 && fireBolt()) cd.bolt = Math.max(.4, 1 - .07 * w.bolt);
+    else if (cd.bolt <= 0) cd.bolt = .1;
+  }
 
   if (w.orbit) {
     for (let i = 0, n = orbCount(); i < n; i++) {
@@ -492,6 +706,26 @@ function updateWeapons2(dt) {
     }
   }
 
+  // «Боевой лом»: короткая быстрая «стрелка» вокруг героя, бьёт вплотную и сильно отбрасывает
+  if (w.crowbar) {
+    const n = w.crowbar, len = 34 + 4 * n, bars = n >= 5 ? 3 : n >= 3 ? 2 : 1, ang = G.t * (6.5 + .4 * n);
+    G.bar = { ang, len, bars };
+    forNear(P.x, P.y, len + 40, e => {
+      if ((e.lCd || 0) > 0) return;
+      const px = e.x - P.x, py = e.y - P.y;
+      for (let b = 0; b < bars; b++) {
+        const a = ang + b * 6.283 / bars, dx = Math.cos(a), dy = Math.sin(a);
+        const t = Math.max(12, Math.min(12 + len, px * dx + py * dy));
+        if (Math.hypot(px - dx * t, py - dy * t) < e.r + 6) {
+          e.lCd = .22;
+          const d = Math.hypot(px, py) || 1;
+          hitEnemy(e, 10 + 4 * n, px / d * 150, py / d * 150);
+          break;
+        }
+      }
+    });
+  } else G.bar = null;
+
   // «Третий глаз»: вращающийся луч (с 3-го уровня — два луча в разные стороны)
   if (w.eye) {
     const n = w.eye, len = 110 + 12 * n, beams = n >= 3 ? 2 : 1, ang = G.t * (1.6 + .15 * n);
@@ -524,6 +758,7 @@ function updateBullets(dt) {
 function update(dt) {
   const P = G.player;
   G.t += dt;
+  if ((G.achT -= dt) <= 0) { G.achT = .5; checkAch(); }
 
   let ix = 0, iy = 0;
   if (keys.has('ArrowLeft') || keys.has('KeyA')) ix -= 1;
@@ -564,7 +799,7 @@ function update(dt) {
     if (e.dead) continue;
     e.flash = Math.max(0, e.flash - dt); e.oCd = Math.max(0, e.oCd - dt);
     if (e.say && (e.say.life -= dt) <= 0) e.say = null;
-    e.slow = Math.max(0, (e.slow || 0) - dt); e.eCd = Math.max(0, (e.eCd || 0) - dt);
+    e.slow = Math.max(0, (e.slow || 0) - dt); e.eCd = Math.max(0, (e.eCd || 0) - dt); e.lCd = Math.max(0, (e.lCd || 0) - dt);
     const sm = e.slow > 0 ? .4 : 1;
     let dx = P.x - e.x, dy = P.y - e.y;
     const d = Math.hypot(dx, dy) || 1;
@@ -586,7 +821,15 @@ function update(dt) {
     if (P.inv <= 0 && d < e.r + 9) {
       P.hp -= e.dmg; P.inv = .45;
       addFx({ k: 'txt', x: P.x, y: P.y - 20, text: '-' + Math.round(e.dmg), life: .6, red: true });
-      if (P.hp <= 0) { endGame(); return; }
+      G.lastHurt = G.t;
+      if (P.hp <= 0) {
+        if (G.lives > 0) {       // «девять жизней»: одно воскрешение, враги отлетают
+          G.lives--; P.hp = P.max / 2; P.inv = 2;
+          addFx({ k: 'ring', x: P.x, y: P.y, r: 0, maxr: 200, life: .6, max: .6, col: '255,170,60' });
+          for (const o of G.enemies) { const dx = o.x - P.x, dy = o.y - P.y, dd = Math.hypot(dx, dy) || 1; if (dd < 220) { o.kx += dx / dd * 450; o.ky += dy / dd * 450; } }
+          say('Мяу! Это была одна из девяти!', 3);
+        } else { endGame(); return; }
+      }
       if (P.hp < P.max * .3 && G.hurtSayT <= 0) { say(pickSay('hurt'), 2.5); G.hurtSayT = 15; }
     }
   }
@@ -627,10 +870,14 @@ function update(dt) {
 
 function endGame() {
   state = 'over';
+  checkAch();
+  save.kills += G.kills; persist();
   const rec = G.t > best;
   if (rec) { best = G.t; lsSet('surv-best', Math.floor(best)); }
+  document.getElementById('deadTitle').textContent = G.hero.dead;
   document.getElementById('stats').innerHTML =
-    `Продержались: <b>${mmss(G.t)}</b>${rec ? ' — новый рекорд!' : ''}<br>Побеждено: <b>${G.kills}</b><br>Уровень просветления: <b>${G.lvl}</b>`;
+    `Продержались: <b>${mmss(G.t)}</b>${rec ? ' — новый рекорд!' : ''}<br>Побеждено: <b>${G.kills}</b><br>Уровень просветления: <b>${G.lvl}</b>` +
+    (G.newHeroes.length ? `<br><span style="color:#ffd23f">Открыт герой: ${G.newHeroes.join(', ')}</span>` : '');
   document.getElementById('dead').classList.remove('hidden');
 }
 
@@ -727,6 +974,16 @@ function render() {
     ctx.fillStyle = PAL.y; ctx.beginPath(); ctx.arc(x, y, 6, 0, 6.283); ctx.fill();
     ctx.fillStyle = '#fff'; ctx.fillRect(x - 2, y - 3, 3, 3);
   }
+  if (G.bar) for (let b = 0; b < G.bar.bars; b++) {
+    const a = G.bar.ang + b * 6.283 / G.bar.bars, dx = Math.cos(a), dy = Math.sin(a), y0 = P.y - 6;
+    ctx.strokeStyle = 'rgba(255,255,255,.14)'; ctx.lineWidth = 3;           // шлейф размаха
+    ctx.beginPath(); ctx.arc(P.x, y0, 12 + G.bar.len * .7, a - .9, a); ctx.stroke();
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = '#2b2233'; ctx.lineWidth = 7; ctx.beginPath(); ctx.moveTo(P.x + dx * 12, y0 + dy * 12); ctx.lineTo(P.x + dx * (12 + G.bar.len), y0 + dy * (12 + G.bar.len)); ctx.stroke();
+    ctx.strokeStyle = '#c0c4cc'; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(P.x + dx * 12, y0 + dy * 12); ctx.lineTo(P.x + dx * (12 + G.bar.len), y0 + dy * (12 + G.bar.len)); ctx.stroke();
+    ctx.strokeStyle = '#d94141'; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(P.x + dx * (G.bar.len + 2), y0 + dy * (G.bar.len + 2)); ctx.lineTo(P.x + dx * (12 + G.bar.len), y0 + dy * (12 + G.bar.len)); ctx.stroke();
+    ctx.lineCap = 'butt';
+  }
   if (G.eye) for (let b = 0; b < G.eye.beams; b++) {
     const a = G.eye.ang + b * Math.PI, ex = P.x + Math.cos(a) * G.eye.len, ey = P.y - 6 + Math.sin(a) * G.eye.len;
     ctx.lineCap = 'round';
@@ -782,7 +1039,7 @@ function render() {
   shadowText(Math.ceil(P.hp) + ' / ' + P.max, hx + hw / 2, hy + 17);
 
   // оружие и улучшения
-  const WEAPONS = [['bolt', '#ffd23f'], ['orbit', '#ffffff'], ['aura', '#ff9ecb'], ['light', '#8ecbff'], ['lotus', '#ff9ecb'], ['incense', '#c9b3ea'], ['gong', '#8ecbff'], ['eye', '#ff50c8']];
+  const WEAPONS = [['bolt', '#ffd23f'], ['orbit', '#ffffff'], ['aura', '#ff9ecb'], ['light', '#8ecbff'], ['crowbar', '#c0c4cc'], ['lotus', '#ff9ecb'], ['incense', '#c9b3ea'], ['gong', '#8ecbff'], ['eye', '#ff50c8']];
   let sx = hx;
   for (const [id, col] of WEAPONS) {
     const lv = G.w[id]; if (!lv) continue;
@@ -815,6 +1072,7 @@ function drawSlot(x, y, size, id, col, lv) {
   }
   else if (id === 'aura') { ctx.beginPath(); ctx.arc(cx, cy, 5, 0, 6.283); ctx.stroke(); ctx.beginPath(); ctx.arc(cx, cy, 10, 0, 6.283); ctx.stroke(); }
   else if (id === 'light') { ctx.beginPath(); ctx.moveTo(cx + 3, cy - 11); ctx.lineTo(cx - 5, cy + 1); ctx.lineTo(cx + 1, cy + 1); ctx.lineTo(cx - 3, cy + 11); ctx.stroke(); }
+  else if (id === 'crowbar') { ctx.lineCap = 'round'; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(cx - 9, cy + 9); ctx.lineTo(cx + 8, cy - 8); ctx.stroke(); ctx.strokeStyle = '#d94141'; ctx.beginPath(); ctx.moveTo(cx + 3, cy - 3); ctx.lineTo(cx + 8, cy - 8); ctx.stroke(); ctx.lineCap = 'butt'; }
   else if (id === 'lotus') { for (let i = 0; i < 5; i++) { const a = i * 1.2566; ctx.beginPath(); ctx.arc(cx + Math.cos(a) * 7, cy + Math.sin(a) * 7, 4, 0, 6.283); ctx.fill(); } ctx.fillStyle = PAL.y; ctx.beginPath(); ctx.arc(cx, cy, 3, 0, 6.283); ctx.fill(); }
   else if (id === 'incense') { for (let i = -1; i <= 1; i++) { ctx.beginPath(); ctx.moveTo(cx + i * 7, cy + 10); ctx.quadraticCurveTo(cx + i * 7 + 5, cy + 3, cx + i * 7, cy - 3); ctx.quadraticCurveTo(cx + i * 7 - 4, cy - 8, cx + i * 7 + 1, cy - 12); ctx.stroke(); } }
   else if (id === 'gong') { ctx.beginPath(); ctx.arc(cx, cy, 10, 0, 6.283); ctx.stroke(); ctx.beginPath(); ctx.arc(cx, cy, 4, 0, 6.283); ctx.fill(); }
@@ -853,11 +1111,11 @@ function drawHero(P) {
   // нимб-свечение и тень
   ctx.fillStyle = 'rgba(0,0,0,.28)';
   ctx.beginPath(); ctx.ellipse(P.x, P.y + 20, 14, 5, 0, 0, 6.283); ctx.fill();
-  ctx.fillStyle = 'rgba(255,210,63,.18)';
+  ctx.fillStyle = `rgba(${G.hero.glow},.18)`;
   ctx.beginPath(); ctx.arc(P.x, P.y - 4, 26 + Math.sin(G.t * 4) * 2, 0, 6.283); ctx.fill();
   const bob = P.moving ? Math.sin(G.t * 14) * 2 : Math.sin(G.t * 3) * 1;
   if (P.inv > 0 && Math.floor(G.t * 20) % 2) ctx.globalAlpha = .45;
-  drawSpr(ctx, SPR.hero, P.x, P.y - 6 + bob, 3, P.face < 0, false);
+  drawSpr(ctx, SPR[G.hero.spr], P.x, P.y - 6 + bob, 3, P.face < 0, false);
   ctx.globalAlpha = 1;
 }
 
@@ -897,6 +1155,40 @@ function togglePause() {
   }
 }
 
+// выбор героя на стартовом экране
+const heroBox = document.getElementById('heroes');
+function buildHeroCards() {
+  heroBox.innerHTML = '';
+  const need = id => ACH.find(a => a.id === id);
+  for (const h of Object.values(HEROES)) {
+    const open = unlocked(h);
+    const card = document.createElement('div');
+    card.className = 'hero-card' + (h.id === heroId ? ' sel' : '') + (open ? '' : ' locked');
+    const cv2 = document.createElement('canvas'); cv2.width = 72; cv2.height = 72;
+    const c2 = cv2.getContext('2d'); c2.imageSmoothingEnabled = false;
+    drawSpr(c2, SPR[h.spr], 36, 36, 4.5, false, false);
+    if (!open) { c2.globalCompositeOperation = 'source-atop'; c2.fillStyle = 'rgba(20,16,31,.92)'; c2.fillRect(0, 0, 72, 72); }
+    card.appendChild(cv2);
+    card.insertAdjacentHTML('beforeend', open
+      ? `<b>${h.name}</b><span>${h.desc}</span>`
+      : `<b>🔒 ???</b><span>Откроется: ${need(h.unlock).name} — ${need(h.unlock).desc}</span>`);
+    if (open) card.onclick = () => { heroId = h.id; lsSetStr('surv-hero', h.id); reset(); buildHeroCards(); };
+    heroBox.appendChild(card);
+  }
+}
+const lsSetStr = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
+buildHeroCards();
+
+function showAchievements() {
+  const box = document.getElementById('achList'); box.innerHTML = '';
+  for (const a of ACH) {
+    const on = !!save.ach[a.id], h = Object.values(HEROES).find(h => h.unlock === a.id);
+    box.insertAdjacentHTML('beforeend', `<div class="ach ${on ? '' : 'off'}"><b>${on ? '🏆' : '🔒'} ${a.name}</b><small>${a.desc}${h ? ' → герой: ' + (on ? h.name : '???') : ''}</small></div>`);
+  }
+  document.getElementById('menu').classList.add('hidden');
+  document.getElementById('achScreen').classList.remove('hidden');
+}
+
 function begin() {
   reset(); state = 'play'; joy.active = false;
   document.getElementById('menu').classList.add('hidden');
@@ -906,6 +1198,16 @@ function begin() {
 }
 document.getElementById('play').onclick = begin;
 document.getElementById('again').onclick = begin;
+document.getElementById('toMenu').onclick = () => {
+  document.getElementById('dead').classList.add('hidden');
+  state = 'menu'; reset(); buildHeroCards();
+  document.getElementById('menu').classList.remove('hidden');
+};
+document.getElementById('achBtn').onclick = showAchievements;
+document.getElementById('achClose').onclick = () => {
+  document.getElementById('achScreen').classList.add('hidden');
+  document.getElementById('menu').classList.remove('hidden');
+};
 document.getElementById('pauseBtn').onclick = togglePause;
 document.getElementById('resume').onclick = togglePause;
 document.getElementById('quit').onclick = () => { togglePause(); endGame(); };
