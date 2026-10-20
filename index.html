@@ -176,15 +176,16 @@ function resize() {
 addEventListener('resize', resize); resize();
 
 // тайл травы
-const tile = document.createElement('canvas'); tile.width = tile.height = 96;
+const TILE = 384;   // крупный тайл, чтобы повтор травы не бросался в глаза
+const tile = document.createElement('canvas'); tile.width = tile.height = TILE;
 {
   const t = tile.getContext('2d');
-  t.fillStyle = '#3a5a40'; t.fillRect(0, 0, 96, 96);
+  t.fillStyle = '#3a5a40'; t.fillRect(0, 0, TILE, TILE);
   const cols = ['#436848', '#335238', '#4a6f4f'], fl = ['#ff9ecb', '#ffe27a', '#ffffff', '#b78cff'];
-  for (let i = 0; i < 32; i++) for (let j = 0; j < 32; j++) {
+  for (let i = 0; i < TILE / 3; i++) for (let j = 0; j < TILE / 3; j++) {
     const r = Math.random();
     if (r < .12) { t.fillStyle = cols[(Math.random() * 3) | 0]; t.fillRect(i * 3, j * 3, 3, 3); }
-    else if (r < .125) { t.fillStyle = fl[(Math.random() * 4) | 0]; t.fillRect(i * 3, j * 3, 3, 3); }
+    else if (r < .1215) { t.fillStyle = fl[(Math.random() * 4) | 0]; t.fillRect(i * 3, j * 3, 3, 3); }
   }
 }
 const grass = ctx.createPattern(tile, 'repeat');
