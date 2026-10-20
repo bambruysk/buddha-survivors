@@ -221,12 +221,28 @@ const SAY = {
     'Истина где-то рядом. Вы стоите на ней.', 'Я не злой. Я просто очень светлый.',
     'Если дерево падает, а вокруг толпа — оно упало удачно.',
   ],
+  idle2: [
+    'Я не толстею — я расширяю сознание.', 'Нирвана закрыта на обед. Подожду.', 'Если долго смотреть на хиппи, хиппи смотрит в ответ.',
+    'Мой гуру сказал «будь водой». Я утонул.', 'Пока вы бежите, я уже здесь. И там. Шучу, здесь.', 'Тишина — лучший ответ. Остальное — лучом.',
+    'Ни о чём не жалею. Кроме этих шорт.', 'Благодарю вас за урок терпения. Особенно вот вас, лохматый.', 'Я отпустил всё. Кроме вот этого посоха.',
+    'Один вдох — один луч. Это и есть баланс.', 'Не толпитесь, это мой личный космос!', 'Просветление пришло. Принесло гору дел.',
+  ],
+  kills: ['Ещё полсотни иллюзий развеяно.', 'Счёт растёт, эго — нет.', 'Статистика — это тоже майя.'],
   level: ['Озарение!', 'Ещё ступень. Ещё глупый вопрос.', 'Чувствую просветление... и перегрев.', 'Я стал на 3% осознаннее.'],
   boss: ['О, Главный хиппи. Намасте, коллега.', 'Большой человек — большая иллюзия.', 'Побеседуем? Лучом.'],
   hurt: ['Это не боль, это иллюзия!', 'Тело — оболочка. Но больно же!', 'Отпусти... отпусти... ай!'],
 };
-const pickSay = k => SAY[k][(Math.random() * SAY[k].length) | 0];
+const pickFrom = a => a[(Math.random() * a.length) | 0];
+const pickSay = k => pickFrom(k === 'idle' ? SAY.idle.concat(SAY.idle2) : SAY[k]);
 function say(text, dur = 3.2) { G.say = { text, life: dur, max: dur }; }
+
+// реплики врагов (по типу)
+const TALK = {
+  hippie: ['Мир, любовь, жвачка!', 'Чувак, ты слишком напряжён.', 'Давай обнимемся!', 'Это всё корпорации, брат.', 'Вайбы не те...', 'Где мой автобус?', 'Пис!'],
+  liberal: ['Это токсично!', 'Я требую диалога!', 'Это неинклюзивно!', 'Я пишу жалобу.', 'Ваша позиция проблематична.', 'Обсудим в комментариях!', 'Мой латте остыл!'],
+  junkie: ['Есть чё?', 'Братан, дай пять рублей...', 'Всё плывёт...', 'Хи-хи, ты светишься!', 'Ты тоже это видишь?', 'Я не я, ящик не мой.'],
+  boss: ['Мы — одна большая семья!', 'Подпишись на мой подкаст!', 'Я ощущаю вашу энергию. Она платная.'],
+};
 
 // ---------- состояние ----------
 let state = 'menu', G;
@@ -241,7 +257,7 @@ function reset() {
         player: { x: 0, y: 0, hp: 100, max: 100, speed: 110, mag: 60, dmg: 1, regen: 0, face: 1, inv: 0, moving: false },
         enemies: [], bullets: [], gems: [], fx: [],
         w: { bolt: 1, orbit: 0, aura: 0, light: 0 }, pl: { hp: 0, spd: 0, mag: 0, mig: 0, reg: 0 },
-        cd: { bolt: 0.3, aura: 1, light: 1 }, grid: new Map(), say: null, sayT: 5, hurtSayT: 0 };
+        cd: { bolt: 0.3, aura: 1, light: 1 }, grid: new Map(), say: null, sayT: 5, hurtSayT: 0, eSayT: 4, killMark: 50 };
   recalc();
 }
 function recalc() {
@@ -436,6 +452,17 @@ function update(dt) {
   G.sayT -= dt;
   if (G.sayT <= 0 && !G.say) { say(pickSay('idle')); G.sayT = 9 + Math.random() * 6; }
 
+  // враги изредка комментируют происходящее
+  G.eSayT -= dt;
+  if (G.eSayT <= 0) {
+    G.eSayT = 2.5 + Math.random() * 3;
+    const near = G.enemies.filter(e => !e.dead && !e.say && Math.abs(e.x - P.x) < vw / 2 - 20 && Math.abs(e.y - P.y) < vh / 2 - 20);
+    if (near.length && G.enemies.filter(e => e.say).length < 3) {
+      const e = pickFrom(near); e.say = { text: pickFrom(TALK[e.type]), life: 2.6, max: 2.6 };
+    }
+  }
+  if (G.kills >= G.killMark) { G.killMark += 50; if (!G.say) { say(pickSay('kills'), 3); G.sayT = Math.max(G.sayT, 6); } }
+
   spawnLogic(dt);
   buildGrid();
 
@@ -443,6 +470,7 @@ function update(dt) {
   for (const e of G.enemies) {
     if (e.dead) continue;
     e.flash = Math.max(0, e.flash - dt); e.oCd = Math.max(0, e.oCd - dt);
+    if (e.say && (e.say.life -= dt) <= 0) e.say = null;
     let dx = P.x - e.x, dy = P.y - e.y;
     const d = Math.hypot(dx, dy) || 1;
     dx /= d; dy /= d;
@@ -615,7 +643,8 @@ function render() {
       ctx.fillStyle = f.red ? '#ff6b6b' : '#fff'; ctx.fillText(f.text, f.x, f.y); ctx.globalAlpha = 1;
     }
   }
-  if (G.say) drawBubble(P, G.say, camx, camx + vw);
+  for (const e of G.enemies) if (e.say && !e.dead && inView(e.x, e.y, 20)) drawBubble(e.x, e.y - e.r - (e.boss ? 36 : 10), e.say, camx, camx + vw, true);
+  if (G.say) drawBubble(P.x, P.y - 44, G.say, camx, camx + vw);
   ctx.restore();
 
   // HUD в экранных пикселях
@@ -677,26 +706,28 @@ function drawSlot(x, y, size, id, col, lv) {
   ctx.fillStyle = '#fff'; ctx.fillText(lv, x + size - 3, y + size - 3);
 }
 
-function drawBubble(P, s, minX, maxX) {
-  ctx.font = 'bold 11px monospace';
-  const maxW = 150, words = s.text.split(' '), lines = [];
+function drawBubble(x, y, s, minX, maxX, small = false) {
+  // x, y — точка над головой, к которой тянется хвостик пузыря
+  const fs = small ? 10 : 11, maxW = small ? 110 : 150, lh = fs + 3;
+  ctx.font = `bold ${fs}px monospace`;
+  const words = s.text.split(' '), lines = [];
   let line = '';
   for (const w of words) {
     const t = line ? line + ' ' + w : w;
     if (ctx.measureText(t).width > maxW && line) { lines.push(line); line = w; } else line = t;
   }
   lines.push(line);
-  const lh = 14, bw = Math.max(...lines.map(l => ctx.measureText(l).width)) + 14, bh = lines.length * lh + 10;
-  const bx = Math.min(Math.max(P.x - bw / 2, minX + 6), maxX - bw - 6), by = P.y - 52 - bh;
+  const bw = Math.max(...lines.map(l => ctx.measureText(l).width)) + 12, bh = lines.length * lh + 8;
+  const bx = Math.min(Math.max(x - bw / 2, minX + 6), maxX - bw - 6), by = y - 8 - bh;
   ctx.globalAlpha = Math.min(1, s.life * 3, (s.max - s.life) * 6);
   ctx.fillStyle = '#fff'; ctx.strokeStyle = '#2b2233'; ctx.lineWidth = 2;
   ctx.beginPath(); ctx.roundRect(bx, by, bw, bh, 6); ctx.fill(); ctx.stroke();
   ctx.beginPath();                                   // хвостик пузыря
-  ctx.moveTo(P.x - 5, by + bh); ctx.lineTo(P.x, by + bh + 8); ctx.lineTo(P.x + 5, by + bh);
+  ctx.moveTo(x - 5, by + bh); ctx.lineTo(x, by + bh + 8); ctx.lineTo(x + 5, by + bh);
   ctx.closePath(); ctx.fill(); ctx.stroke();
-  ctx.fillStyle = '#fff'; ctx.fillRect(P.x - 4, by + bh - 1, 8, 3);   // скрыть линию у основания
-  ctx.fillStyle = '#2b2233'; ctx.textAlign = 'center';
-  lines.forEach((l, i) => ctx.fillText(l, bx + bw / 2, by + 5 + (i + 1) * lh - 3));
+  ctx.fillStyle = '#fff'; ctx.fillRect(x - 4, by + bh - 1, 8, 3);   // скрыть линию у основания
+  ctx.fillStyle = small ? '#8e2b2b' : '#2b2233'; ctx.textAlign = 'center';
+  lines.forEach((l, i) => ctx.fillText(l, bx + bw / 2, by + 4 + (i + 1) * lh - 3));
   ctx.globalAlpha = 1;
 }
 function drawHero(P) {
