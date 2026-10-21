@@ -62,6 +62,8 @@
     <div><canvas id="p1" width="48" height="48"></canvas>хиппи</div>
     <div><canvas id="p2" width="48" height="48"></canvas>либерал</div>
     <div><canvas id="p3" width="48" height="48"></canvas>торчок</div>
+    <div><canvas id="p4" width="48" height="48"></canvas>шизотерик</div>
+    <div><canvas id="p5" width="48" height="48"></canvas>местный</div>
   </div>
   <div class="row"><button id="play">В бой</button><button id="achBtn" class="sec">Достижения</button></div>
   <p style="font-size:13px">Двигаться: WASD / стрелки или палец по экрану (джойстик). На новом уровне — 1, 2, 3 или тап по карточке.</p>
@@ -263,7 +265,35 @@ function makeSprite(rows) {
   wx.drawImage(c, 0, 0); wx.globalCompositeOperation = 'source-in'; wx.fillStyle = '#fff'; wx.fillRect(0, 0, w, h);
   return { c, white: wc, w, h };
 }
-const SPR = { hero: makeSprite(HERO), charon: makeSprite(CHARON), hermit: makeSprite(HERMIT), monk: makeSprite(MONK), gardener: makeSprite(GARDENER), cat: makeSprite(CAT), yogi: makeSprite(YOGI), hippie: makeSprite(HIPPIE), liberal: makeSprite(LIBERAL), junkie: makeSprite(JUNKIE) };
+const SHIZO = [
+  '.....gg.....',
+  '....gggg....',
+  '...gggggg...',
+  '...ssssss...',
+  '..ssksskss..',
+  '...ssrrss...',
+  '..vvvvvvvv..',
+  '.vvvvyyvvvv.',
+  '.vvvvyyvvvv.',
+  'cvvvvvvvvvvc',
+  '...vv..vv...',
+  '...kk..kk...',
+];
+const LOCAL = [
+  '...bbbbbb...',
+  '..bbbbbbbb..',
+  '..kkkkkkkk..',
+  '..ssssssss..',
+  '..ssksskss..',
+  '..ssnnnnss..',
+  '..bbbbbbbb..',
+  '.bwbbbbbbwb.',
+  '.bwbbbbbbwb.',
+  's.bwbbbbwb.a',
+  '...bb..bb...',
+  '...kk..kk...',
+];
+const SPR = { hero: makeSprite(HERO), charon: makeSprite(CHARON), hermit: makeSprite(HERMIT), monk: makeSprite(MONK), gardener: makeSprite(GARDENER), cat: makeSprite(CAT), yogi: makeSprite(YOGI), hippie: makeSprite(HIPPIE), liberal: makeSprite(LIBERAL), junkie: makeSprite(JUNKIE), shizo: makeSprite(SHIZO), local: makeSprite(LOCAL) };
 
 function drawSpr(x2, spr, x, y, scale, flip, flash) {
   x2.save();
@@ -279,7 +309,7 @@ function pic(id, spr, scale) {
   x2.imageSmoothingEnabled = false;
   drawSpr(x2, spr, el.width / 2, el.height / 2, scale, false, false);
 }
-pic('p1', SPR.hippie, 3.5); pic('p2', SPR.liberal, 3.5); pic('p3', SPR.junkie, 3.5);
+pic('p1', SPR.hippie, 3.5); pic('p2', SPR.liberal, 3.5); pic('p3', SPR.junkie, 3.5); pic('p4', SPR.shizo, 3.5); pic('p5', SPR.local, 3.5);
 
 // ---------- канвас ----------
 const cv = document.getElementById('c'), ctx = cv.getContext('2d');
@@ -308,11 +338,110 @@ const tile = document.createElement('canvas'); tile.width = tile.height = TILE;
 }
 const grass = ctx.createPattern(tile, 'repeat');
 
+// ---------- хиппи-феста: палатки, шатры, сцены, статуи ----------
+const recolor = (rows, map) => rows.map(r => [...r].map(ch => map[ch] || ch).join(''));
+const TENT = [
+  '.......AA.......',
+  '......AAAA......',
+  '.....AABBAA.....',
+  '....AAABBAAA....',
+  '...AAAABBAAAA...',
+  '..AAAAAkkAAAAA..',
+  '.AAAAAAkkAAAAAA.',
+  'AAAAAAAkkAAAAAAA',
+];
+function bigTop(a, b) {
+  const rows = ['...........krr..........', '...........k............'];
+  for (let i = 0; i < 7; i++) {
+    const w = 4 + i * 3 - (i % 2), pad = (24 - w) / 2;
+    rows.push('.'.repeat(pad) + [...Array(w)].map((_, j) => (j >> 1) % 2 ? 'B' : 'A').join('') + '.'.repeat(pad));
+  }
+  for (let i = 0; i < 5; i++) {
+    const body = [...Array(22)].map((_, j) => (j >> 1) % 2 ? 'B' : 'A');
+    if (i > 0) for (let j = 9; j < 13; j++) body[j] = 'k';
+    rows.push('.' + body.join('') + '.');
+  }
+  return recolor(rows, { A: a, B: b });
+}
+function stageRows() {
+  const rows = [], lights = 'ryc.';
+  rows.push('d'.repeat(32));
+  rows.push([...Array(32)].map((_, i) => lights[(i >> 1) % 4]).join(''));
+  for (let i = 0; i < 7; i++) {
+    const r = [...Array(32)].map((_, j) => {
+      if (j < 6 || j > 25) return j === 0 || j === 5 || j === 26 || j === 31 ? 'd' : (i % 3 === 1 ? 'g' : 'k');
+      if (i >= 2 && i <= 4 && j >= 12 && j <= 19) return (i === 3 && (j === 15 || j === 16)) ? 'y' : 'p';
+      return 'd';
+    });
+    rows.push(r.join(''));
+  }
+  rows.push('u'.repeat(32), 'u'.repeat(32), 'n'.repeat(32), 'n'.repeat(32));
+  return rows;
+}
+const PROT = {
+  tentR: { rows: recolor(TENT, { A: 'r', B: 'w' }), cols: [[0, -6, 22]] },
+  tentP: { rows: recolor(TENT, { A: 'p', B: 'y' }), cols: [[0, -6, 22]] },
+  tentC: { rows: recolor(TENT, { A: 'c', B: 'w' }), cols: [[0, -6, 22]] },
+  tentO: { rows: recolor(TENT, { A: 'o', B: 'z' }), cols: [[0, -6, 22]] },
+  bigR: { rows: bigTop('r', 'y'), cols: [[-20, -10, 22], [0, -10, 22], [20, -10, 22]] },
+  bigP: { rows: bigTop('v', 'c'), cols: [[-20, -10, 22], [0, -10, 22], [20, -10, 22]] },
+  statue: { rows: ['....gg....', '...gwwg...', '...gwwg...', '....gg....', '..gggggg..', '.gggwwggg.', 'gggwwwwggg', 'gggggggggg', '.dddddddd.', 'dddddddddd'], cols: [[0, -8, 13]] },
+  totem: { rows: ['.rrrr.', '.rkkr.', '.rrrr.', '.pppp.', '.pkkp.', '.pppp.', '.cccc.', '.ckkc.', '.cccc.', '..yy..', '..uu..', '..uu..'], cols: [[0, -6, 9]] },
+  stage: { rows: stageRows(), cols: [[-36, -10, 14], [-18, -10, 14], [0, -10, 14], [18, -10, 14], [36, -10, 14]] },
+  van: { rows: ['...wwwwwwwwwwww...', '..wbbwbbwbbwbbwww.', '..wbbwbbwbbwbbwww.', 'wwwwwwwwwwwwwwwwww', 'cccccccccccccccccc', 'ccccccccppcccccccc', 'cccccccccccccccccc', 'cccccccccccccccccc', '.kkkk......kkkk...', '.kkkk......kkkk...'], cols: [[-16, -10, 14], [0, -10, 14], [16, -10, 14]] },
+  shroom: { rows: ['..rrrr..', '.rwrrwr.', 'rrrrrrrr', 'rwrrrrwr', '..eeee..', '..eeee..', '..eeee..', '..eeee..'], cols: [[0, -6, 8]] },
+  speaker: { rows: ['dddddd', 'dkggkd', 'dkggkd', 'dddddd', 'dkggkd', 'dkggkd', 'dkggkd', 'dddddd', 'dkggkd', 'dkggkd', 'dddddd'], cols: [[0, -6, 9]] },
+  flag: { rows: ['urrrrrr.', 'uoooooo.', 'uyyyyyy.', 'ullllll.', 'ucccccc.', 'uppppp..', 'u.......', 'u.......', 'u.......', 'u.......', 'u.......', 'u.......'], cols: [[-9, -3, 4]] },
+  fire: { rows: ['....ff....', '...ffoo...', '..ffoyof..', '...oyyo...', '..nnnnnn..', '.nn....nn.'], cols: [], glow: true },
+};
+for (const p of Object.values(PROT)) {
+  console.assert(p.rows.every(r => r.length === p.rows[0].length), 'prop row width');
+  p.spr = makeSprite(p.rows);
+}
+const PROP_WEIGHTS = [['tentR', 8], ['tentP', 8], ['tentC', 8], ['tentO', 8], ['bigR', 3], ['bigP', 3], ['statue', 5], ['totem', 5], ['stage', 2], ['van', 4], ['shroom', 6], ['speaker', 5], ['flag', 6], ['fire', 6]];
+const PROP_SUM = PROP_WEIGHTS.reduce((s, [, w]) => s + w, 0);
+const CH = 360, CH_MARGIN = 80;
+const chunks = new Map();
+function mulberry(a) { return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+function chunkAt(cx, cy) {
+  const key = cx + ',' + cy;
+  let c = chunks.get(key); if (c) return c;
+  const rnd = mulberry(cx * 73856093 ^ cy * 19349663 ^ worldSeed);
+  c = { props: [], cols: [] };
+  const n = rnd() < .35 ? 1 : rnd() < .7 ? 2 : 3;
+  for (let i = 0; i < n; i++) {
+    let r = rnd() * PROP_SUM, type = PROP_WEIGHTS[0][0];
+    for (const [t, w] of PROP_WEIGHTS) { if ((r -= w) < 0) { type = t; break; } }
+    const pr = PROT[type];
+    const x = cx * CH + CH_MARGIN + rnd() * (CH - 2 * CH_MARGIN), y = cy * CH + CH_MARGIN + rnd() * (CH - 2 * CH_MARGIN);
+    if (Math.hypot(x, y) < 170) continue;                                   // у старта чисто
+    if (c.props.some(o => Math.hypot(o.x - x, o.y - y) < 95)) continue;     // не лепить друг на друга
+    c.props.push({ type, x, y, pr });
+    for (const [dx, dy, rr] of pr.cols) c.cols.push({ x: x + dx, y: y + dy, r: rr });
+  }
+  chunks.set(key, c);
+  return c;
+}
+const worldSeed = (Math.random() * 1e9) | 0;
+// выталкивает объект (x, y, радиус rad) из препятствий своего чанка
+function pushOut(o, rad) {
+  const c = chunkAt(Math.floor(o.x / CH), Math.floor(o.y / CH));
+  for (const k of c.cols) {
+    const dx = o.x - k.x, dy = o.y - k.y, min = k.r + rad, d2 = dx * dx + dy * dy;
+    if (d2 < min * min) {
+      const d = Math.sqrt(d2) || .01;
+      o.x = k.x + dx / d * min; o.y = k.y + dy / d * min;
+    }
+  }
+}
+
 // ---------- данные ----------
 const TYPES = {
   hippie:  { hp: 18, spd: 38, dmg: 6,  r: 11, xp: 1 },
   junkie:  { hp: 10, spd: 82, dmg: 5,  r: 10, xp: 1 },
   liberal: { hp: 42, spd: 30, dmg: 10, r: 11, xp: 3 },
+  shizo:   { hp: 30, spd: 45, dmg: 8,  r: 11, xp: 3 },
+  local:   { hp: 95, spd: 34, dmg: 14, r: 14, xp: 5, sc: 4 },
   boss:    { hp: 380, spd: 30, dmg: 18, r: 30, xp: 20 },
 };
 
@@ -455,6 +584,8 @@ const TALK = {
   hippie: ['Мир, любовь, жвачка!', 'Чувак, ты слишком напряжён.', 'Давай обнимемся!', 'Это всё корпорации, брат.', 'Вайбы не те...', 'Где мой автобус?', 'Пис!'],
   liberal: ['Это токсично!', 'Я требую диалога!', 'Это неинклюзивно!', 'Я пишу жалобу.', 'Ваша позиция проблематична.', 'Обсудим в комментариях!', 'Мой латте остыл!'],
   junkie: ['Есть чё?', 'Братан, дай пять рублей...', 'Всё плывёт...', 'Хи-хи, ты светишься!', 'Ты тоже это видишь?', 'Я не я, ящик не мой.'],
+  shizo: ['У меня чакры не в том порядке!', 'Меркурий в ретрограде!', 'Это ты порчу навёл!', 'Твоя аура серая. Как твои будни.', 'Кристаллы не врут!', 'Вас всех чипируют!', 'Фольга спасёт!'],
+  local: ['Ты чё тут забыл?', 'Это наш район!', 'Ты не местный?', 'Закурить есть?', 'Тут раньше поле было!', 'Опять понаехали...', 'Пиво кончилось.'],
   boss: ['Мы — одна большая семья!', 'Подпишись на мой подкаст!', 'Я ощущаю вашу энергию. Она платная.'],
 };
 
@@ -515,14 +646,15 @@ function pickType(t) {
   const r = Math.random();
   if (t < 25) return 'hippie';
   if (t < 70) return r < .65 ? 'hippie' : 'junkie';
-  return r < .4 ? 'hippie' : r < .7 ? 'junkie' : 'liberal';
+  if (t < 100) return r < .35 ? 'hippie' : r < .6 ? 'junkie' : r < .8 ? 'liberal' : 'shizo';
+  return r < .25 ? 'hippie' : r < .45 ? 'junkie' : r < .62 ? 'liberal' : r < .82 ? 'shizo' : 'local';
 }
 function spawnLogic(dt) {
   const t = G.t;
   G.spawnT -= dt;
   while (G.spawnT <= 0) {
-    G.spawnT += Math.max(.1, .85 - t * .0035);
-    if (G.enemies.length < 380) for (let i = 0, n = 1 + Math.floor(t / 45); i < n; i++) spawnEnemy(pickType(t));
+    G.spawnT += Math.max(.08, .8 - t * .0045);
+    if (G.enemies.length < 480) for (let i = 0, n = 1 + Math.floor(t / 35); i < n; i++) spawnEnemy(pickType(t));
   }
   if (t >= G.nextHorde) {           // «хиппи-коммуна» идёт дугой
     G.nextHorde += 25;
@@ -552,7 +684,7 @@ function killEnemy(e) {
   }
   if (e.boss) G.gems.push({ x: e.x, y: e.y, v: 0, heal: 50 });
   else if (Math.random() < .015) G.gems.push({ x: e.x, y: e.y, v: 0, heal: 25 });
-  const col = PAL[e.type === 'junkie' ? 'z' : e.type === 'liberal' ? 'v' : 'p'];
+  const col = PAL[({ junkie: 'z', liberal: 'v', shizo: 'c', local: 'b' })[e.type] || 'p'];
   for (let i = 0; i < (e.boss ? 24 : 6); i++) {
     const a = Math.random() * 6.283, s = 40 + Math.random() * 80;
     addFx({ k: 'p', x: e.x, y: e.y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, life: .45, max: .45, color: col, size: 3 });
@@ -769,6 +901,7 @@ function update(dt) {
   const l = Math.hypot(ix, iy);
   if (l > 1) { ix /= l; iy /= l; }
   P.x += ix * P.speed * dt; P.y += iy * P.speed * dt;
+  pushOut(P, 8);
   P.moving = l > .1;
   if (Math.abs(ix) > .1) P.face = ix > 0 ? 1 : -1;
   P.inv = Math.max(0, P.inv - dt);
@@ -806,7 +939,21 @@ function update(dt) {
     dx /= d; dy /= d;
     let mx = dx, my = dy;
     if (e.type === 'junkie') { const s = Math.sin(G.t * 8 + e.id) * .7; mx += -dy * s; my += dx * s; }
+    if (e.type === 'shizo' && (e.tpT = (e.tpT ?? 2 + Math.random() * 3) - dt) <= 0) {   // шизотерик «телепортируется по астралу»
+      e.tpT = 4 + Math.random() * 3;
+      if (d > 140) {
+        addFx({ k: 'ring', x: e.x, y: e.y, r: 0, maxr: 40, life: .3, max: .3, col: '90,230,230' });
+        const a = Math.random() * 6.283; e.x = P.x + Math.cos(a) * 110; e.y = P.y + Math.sin(a) * 110;
+        addFx({ k: 'ring', x: e.x, y: e.y, r: 0, maxr: 40, life: .3, max: .3, col: '90,230,230' });
+      }
+    }
+    if (e.type === 'local') {                                                           // местный бросается на чужака
+      e.dsT = (e.dsT ?? 2 + Math.random() * 2) - dt;
+      if (e.dsT <= 0 && d < 280) { e.dash = .45; e.dsT = 3.5 + Math.random() * 1.5; }
+      if (e.dash > 0) { e.dash -= dt; mx *= 3; my *= 3; }
+    }
     e.x += (mx * e.spd * sm + e.kx) * dt; e.y += (my * e.spd * sm + e.ky) * dt;
+    pushOut(e, e.boss ? e.r * .5 : e.r * .6);
     const decay = Math.min(1, 9 * dt); e.kx -= e.kx * decay; e.ky -= e.ky * decay;
     if (Math.abs(dx) > .2) e.face = dx > 0 ? 1 : -1;
     forNear(e.x, e.y, e.r * 2, o => {
@@ -865,7 +1012,7 @@ function update(dt) {
     const a = Math.random() * 6.283, d = Math.hypot(vw, vh) / 2 + 40; e.x = P.x + Math.cos(a) * d; e.y = P.y + Math.sin(a) * d;
   }
 
-  if (G.xp >= G.need) { G.xp -= G.need; G.lvl++; G.need = Math.floor(5 + G.lvl * 3.2); offer(); }
+  if (G.xp >= G.need) { G.xp -= G.need; G.lvl++; G.need = Math.floor(5 + G.lvl * 3.2 + Math.pow(Math.max(0, G.lvl - 8), 1.5) * 1.2); offer(); }
 }
 
 function endGame() {
@@ -884,8 +1031,11 @@ function endGame() {
 // ---------- повышение уровня ----------
 const levelOf = u => u.kind === 'w' ? G.w[u.id] : G.pl[u.id];
 let choices = [];
+const MAX_SLOTS = 6;
+const slotsUsed = k => UPG.filter(u => u.kind === k && levelOf(u) > 0).length;
 function offer() {
-  const pool = UPG.filter(u => levelOf(u) < u.max).sort(() => Math.random() - .5).slice(0, 3);
+  const full = { w: slotsUsed('w') >= MAX_SLOTS, p: slotsUsed('p') >= MAX_SLOTS };
+  const pool = UPG.filter(u => levelOf(u) < u.max && (levelOf(u) > 0 || !full[u.kind])).sort(() => Math.random() - .5).slice(0, 3);
   if (!pool.length) { G.player.hp = G.player.max; return; }
   state = 'levelup'; choices = pool;
   say(pickSay('level'), 2.5);
@@ -949,13 +1099,17 @@ function render() {
 
   // враги и герой по глубине
   const list = G.enemies.filter(e => inView(e.x, e.y, 80));
+  for (let cx = Math.floor((camx - 100) / CH); cx <= Math.floor((camx + vw + 100) / CH); cx++)
+    for (let cy = Math.floor((camy - 100) / CH); cy <= Math.floor((camy + vh + 100) / CH); cy++)
+      for (const o of chunkAt(cx, cy).props) list.push({ prop: o, y: o.y });
   list.push({ hero: true, y: P.y });
   list.sort((a, b) => a.y - b.y);
   for (const e of list) {
     if (e.hero) { drawHero(P); continue; }
+    if (e.prop) { drawProp(e.prop); continue; }
     ctx.fillStyle = 'rgba(0,0,0,.28)';
     ctx.beginPath(); ctx.ellipse(e.x, e.y + e.r * .8, e.r * .9, e.r * .35, 0, 0, 6.283); ctx.fill();
-    const spr = e.boss ? SPR.hippie : SPR[e.type], sc = e.boss ? 8 : 3;
+    const spr = e.boss ? SPR.hippie : SPR[e.type], sc = e.boss ? 8 : (TYPES[e.type].sc || 3);
     const bob = Math.sin(G.t * 10 + e.id) * 1.2;
     if (e.boss) { ctx.strokeStyle = 'rgba(255,60,60,.8)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(e.x, e.y, e.r + 8, 0, 6.283); ctx.stroke(); }
     drawSpr(ctx, spr, e.x, e.y + bob, sc, e.face < 0, e.flash > 0);
@@ -1106,6 +1260,17 @@ function drawBubble(x, y, s, minX, maxX, small = false) {
   ctx.fillStyle = small ? '#8e2b2b' : '#2b2233'; ctx.textAlign = 'center';
   lines.forEach((l, i) => ctx.fillText(l, bx + bw / 2, by + 4 + (i + 1) * lh - 3));
   ctx.globalAlpha = 1;
+}
+function drawProp(o) {
+  const spr = o.pr.spr, w = spr.w * 3;
+  ctx.fillStyle = 'rgba(0,0,0,.25)';
+  ctx.beginPath(); ctx.ellipse(o.x, o.y - 2, w * .5, 6, 0, 0, 6.283); ctx.fill();
+  if (o.pr.glow) {
+    const f = .85 + Math.sin(G.t * 14 + o.x) * .15;
+    ctx.fillStyle = `rgba(255,170,60,${.16 * f})`; ctx.beginPath(); ctx.arc(o.x, o.y - 10, 46 * f, 0, 6.283); ctx.fill();
+    ctx.fillStyle = `rgba(255,210,90,${.16 * f})`; ctx.beginPath(); ctx.arc(o.x, o.y - 10, 26 * f, 0, 6.283); ctx.fill();
+  }
+  drawSpr(ctx, spr, o.x, o.y - spr.h * 1.5, 3, false, false);
 }
 function drawHero(P) {
   // нимб-свечение и тень
